@@ -338,9 +338,12 @@ def sync_to_shared_volume(config_dict, format_type='yaml'):
     urls_to_test = ['http://litellm:4000/health', 'http://127.0.0.1:4000/health']
     health_status = 'Unverified'
     
+    master_key = os.environ.get('LITELLM_MASTER_KEY')
     for url in urls_to_test:
         try:
             req = urllib.request.Request(url)
+            if master_key:
+                req.add_header('Authorization', f'Bearer {master_key}')
             with urllib.request.urlopen(req, timeout=2) as resp:
                 if resp.status == 200:
                     health_status = 'Healthy'

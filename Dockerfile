@@ -1,6 +1,18 @@
 # Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
+# Install system dependencies required for building
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust and Cargo via rustup
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+# Add Cargo to the PATH so pip can find it
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # Set the working directory in the container
 WORKDIR /app
 

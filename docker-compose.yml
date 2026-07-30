@@ -4,10 +4,11 @@ services:
   litellm-helper:
     build: .
     ports:
-      - "5001:5001"
+      - "${PORT:-5001}:${PORT:-5001}"
     volumes:
       - ./data:/app/data
     environment:
+      - PORT=${PORT:-5001}
       - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
       

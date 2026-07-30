@@ -28,12 +28,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Create the data directory for the SQLite database
 RUN mkdir -p /app/data
 
-# Make port 5001 available to the world outside this container
-EXPOSE 5001
-
-# Set the environment variable for the Flask app
+# Set environment variables for the Flask app
+ENV PORT=5001
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 
+# Make port available to the container
+EXPOSE ${PORT}
+
 # Run the Flask application
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5001"]
+CMD ["sh", "-c", "flask run --host=0.0.0.0 --port=${PORT:-5001}"]

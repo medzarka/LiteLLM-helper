@@ -19,7 +19,8 @@ except ImportError:
     from app import create_app
 
 if __name__ == '__main__':
-    print(f"Starting LiteLLM Helper v3...")
+    port = int(os.environ.get('PORT', 5001))
+    print(f"Starting LiteLLM Helper v3 on port {port}...")
     print(f"Project root: {project_root}")
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5009)
+    app.run(debug=True, host='0.0.0.0', port=port)

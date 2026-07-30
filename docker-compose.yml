@@ -34,8 +34,7 @@ services:
     command: [
       "--config", "/app/config.yaml",
       "--port", "4000",
-      "--num_workers", "3",
-      "--watch"
+      "--reload"
     ]
 
   # ========================================================

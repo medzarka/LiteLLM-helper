@@ -74,7 +74,7 @@ Once running, the applications can be accessed at:
 
 When changes are made in the **LiteLLM Helper UI** (e.g. adding a new model or updating an API key), simply navigate to the **Export Config** tab. 
 
-Clicking **"Sync to Live LiteLLM"** will safely overwrite the shared `config.yaml` in the host volume (`/home/mgrsys/DATA/var/ai-ui/litellm`). The LiteLLM container is running with the `--watch` parameter, meaning it will detect the change and restart its workers immediately—zero manual restarts required!
+Clicking **"Sync to Live LiteLLM"** will safely overwrite the shared `config.yaml` in the host volume (`/home/mgrsys/DATA/var/ai-ui/litellm`). The LiteLLM container is running with the `--reload` parameter, meaning it will detect the change and restart its workers immediately—zero manual restarts required!
 
 ## 🤝 Contributing
 

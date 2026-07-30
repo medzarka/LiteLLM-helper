@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <h1 class="h2 mb-0">Documentation</h1>
+    <a href="{{ url_for('providers') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Introduction</h5>
+            </div>
+            <div class="card-body">
+                <p class="lead">LiteLLM Helper v3 is a web-based configuration generator for LiteLLM proxy that helps you manage LLM providers, API keys, models, key rotation, and aggregated model configurations.</p>
+                <p class="mb-0">This tool simplifies LiteLLM configuration by providing one UI for provider setup, model definitions, routing, and export.</p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-rocket me-2"></i>Quick Start Guide</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li class="mb-2"><strong>Set Password:</strong> Configure <code>LITELLM_HELPER_PASSWORD</code> in your <code>.env</code> file.</li>
+                    <li class="mb-2"><strong>Add Providers:</strong> Go to <a href="{{ url_for('providers') }}">Providers</a> and add Groq, OpenRouter, Google, etc.</li>
+                    <li class="mb-2"><strong>Add API Keys:</strong> Add one or more keys per provider in <a href="{{ url_for('keys') }}">API Keys</a>.</li>
+                    <li class="mb-2"><strong>Configure Models:</strong> Define model limits, skills, timeout, and size in <a href="{{ url_for('models') }}">Models</a>.</li>
+                    <li class="mb-2"><strong>Create Aggregations:</strong> Pool models under one shared name in <a href="{{ url_for('aggregated_models') }}">Aggregated Models</a>.</li>
+                    <li><strong>Export:</strong> Generate proxy configuration in <a href="{{ url_for('export_config') }}">Export Config</a>.</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-stars me-2"></i>Features Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6"><strong>Provider Management:</strong> Add and edit API base URLs and provider metadata.</div>
+                    <div class="col-md-6"><strong>API Key Management:</strong> Keep multiple keys and toggle active/inactive states.</div>
+                    <div class="col-md-6"><strong>Model Configuration:</strong> Control per-model limits, capabilities, and skills.</div>
+                    <div class="col-md-6"><strong>Aggregated Models:</strong> Route across providers through a shared model name.</div>
+                    <div class="col-md-6"><strong>Key Rotation:</strong> Distribute requests across keys to reduce throttling risk.</div>
+                    <div class="col-md-6"><strong>Health Checks:</strong> Verify model availability from the UI.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-diagram-2 me-2"></i>Understanding Aggregated Models</h5>
+            </div>
+            <div class="card-body">
+                <p>Aggregated models let you map multiple provider models to one shared alias. This improves resiliency and gives you a larger combined key pool.</p>
+                <h6>Common Benefits</h6>
+                <ul class="mb-0">
+                    <li>Load balancing across providers and keys.</li>
+                    <li>Automatic fallback when one provider has transient errors.</li>
+                    <li>Higher total throughput by combining key quotas.</li>
+                    <li>Vendor redundancy without changing client-side model names.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Model Fallback Configuration</h5>
+            </div>
+            <div class="card-body">
+                <p>Model fallbacks define primary-to-secondary model failover chains for LiteLLM. When requests to a primary model fail or hit rate limits, LiteLLM automatically routes the request to configured fallback models in priority order.</p>
+                <h6>Configuring Fallbacks & Export Controls</h6>
+                <ul>
+                    <li><strong>Primary Model:</strong> The request target (individual or aggregated shared model name).</li>
+                    <li><strong>Fallback Target Sequence:</strong> Ordered list of fallback models tried sequentially.</li>
+                    <li><strong>Export Customization:</strong> In <em>Export Config</em>, users can toggle whether fallback rules and aggregation rules are included in the generated LiteLLM configuration file.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i>Key Rotation Strategies Explained</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">Key rotation strategy decides how requests are distributed across active keys. Choosing the right strategy depends on your quotas, reliability needs, and cost profile.</p>
+
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>How It Works</th>
+                                <th>Pros</th>
+                                <th>Cons</th>
+                                <th>Best Use</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Round Robin</strong></td>
+                                <td>Requests are sent to keys in fixed sequence: key1, key2, key3, then repeat.</td>
+                                <td>Simple, fair distribution, predictable key usage, easy to debug.</td>
+                                <td>Does not react to temporary failures or hot keys unless combined with cooldown/failure rules.</td>
+                                <td>Default choice when keys are similar and stable.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Least Busy</strong></td>
+                                <td>Prefers keys with lower current load or fewer recent requests.</td>
+                                <td>Can reduce burst throttling and smooth spikes.</td>
+                                <td>Needs reliable load tracking; behavior can be less predictable; higher implementation complexity.</td>
+                                <td>High-traffic setups with uneven request patterns.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Random</strong></td>
+                                <td>Picks a random active key for each request.</td>
+                                <td>Very simple and avoids strict sequence hot-spots.</td>
+                                <td>Can be uneven over short windows; harder to reason about per-key usage.</td>
+                                <td>Small deployments where strict fairness is not required.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Failover Priority</strong></td>
+                                <td>Uses a preferred key/key set first, then falls back when failures occur.</td>
+                                <td>Strong control over preferred providers or paid keys.</td>
+                                <td>Primary key can hit limits quickly; backups may stay mostly unused.</td>
+                                <td>When you have a premium primary key and backup keys.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6>Recommendation for Free-Tier Keys</h6>
+                <p class="mb-2"><strong>Best default:</strong> Round Robin + cooldown + retry.</p>
+                <ul>
+                    <li><strong>Why:</strong> Free-tier keys usually have tight RPM/TPM quotas. Round robin spreads requests evenly, reducing the chance of burning a single key too quickly.</li>
+                    <li><strong>Cooldown:</strong> If a key returns rate-limit errors, temporarily skip it for a short period (for example 30 to 120 seconds).</li>
+                    <li><strong>Retries:</strong> Keep retries low (for example 1 to 2) to avoid retry storms that consume limited quotas.</li>
+                    <li><strong>Allowed fails:</strong> Mark noisy keys inactive faster to protect overall success rate.</li>
+                </ul>
+
+                <h6>Suggested Baseline for Free Tier</h6>
+                <ul class="mb-0">
+                    <li>Routing strategy: round_robin</li>
+                    <li>Key rotation strategy: round_robin</li>
+                    <li>Cooldown time: 60 seconds</li>
+                    <li>Allowed fails: 2</li>
+                    <li>Retries: 1</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-wrench me-2"></i>Troubleshooting</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Issue</th>
+                                <th>Solution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Port 5001 in use</td>
+                                <td><code>lsof -ti :5001 | xargs -r kill -9</code></td>
+                            </tr>
+                            <tr>
+                                <td>Password not accepted</td>
+                                <td>Verify <code>LITELLM_HELPER_PASSWORD</code> in your environment.</td>
+                            </tr>
+                            <tr>
+                                <td>Health checks fail because litellm is missing</td>
+                                <td>Install dependency: <code>pip install litellm</code>.</td>
+                            </tr>
+                            <tr>
+                                <td>Aggregation missing from export</td>
+                                <td>Enable export of aggregated configuration and confirm models are mapped.</td>
+                            </tr>
+                            <tr>
+                                <td>Filters return no models</td>
+                                <td>Clear all filters and re-check provider/model records.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Developer</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-person-circle text-primary" style="font-size: 4rem;"></i>
+                </div>
+                <h5>Mohamed Zarka</h5>
+                <p class="text-muted mb-2">
+                    <i class="bi bi-envelope me-1"></i>
+                    <a href="mailto:medzarka@gmail.com">medzarka@gmail.com</a>
+                </p>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-heart-fill text-danger me-1"></i>
+                    Developed with assistance from Laguna M1 AI model
+                    <br>
+                    <small>(provided by OpenRouter)</small>
+                </p>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-folder me-2"></i>File Locations</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <code>litellm_helper.db</code>
+                        <small class="d-block text-muted">SQLite database (auto-created)</small>
+                    </li>
+                    <li class="mb-2">
+                        <code>aggregations.json</code>
+                        <small class="d-block text-muted">Model aggregation config</small>
+                    </li>
+                    <li class="mb-2">
+                        <code>rotation_settings.json</code>
+                        <small class="d-block text-muted">Key rotation settings</small>
+                    </li>
+                    <li class="mb-2">
+                        <code>versions/*.json</code>
+                        <small class="d-block text-muted">Version snapshots</small>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

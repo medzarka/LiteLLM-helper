@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  litellm-helper:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      
+    restart: unless-stopped

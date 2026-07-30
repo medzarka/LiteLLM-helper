@@ -1,0 +1,1638 @@
+{
+  "captured_at": "2026-07-25T18:15:12",
+  "providers": [
+    {
+      "id": 1,
+      "name": "Groq",
+      "api_base": "",
+      "description": "**Pros**: Blazing fast LPU (Language Processing Unit) inference; ideal for real-time, low-latency applications using open-weight models.\n\n**Cons**: Strict free-tier bottlenecks, typically capped at 30 requests per minute (RPM).\n\n**Rate Limit Strategy**: Groq strictly enforces both RPM and Tokens Per Minute (TPM); hitting either threshold triggers a 429 error. By rotating multiple Groq keys in a round-robin setup, we can pool your TPM allowances and easily bypass the 30 RPM ceiling, maintaining continuous ultra-fast inference.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 2,
+      "name": "Google",
+      "api_base": "",
+      "description": "**Pros**: Unlocks massive context windows (up to 2 million tokens) and highly generous free-tier usage limits.\n\n**Cons**: Data processed on the free tier may be used to train Google's models. Note: As highlighted in your setup, only Gemma models are currently working.\n\n**Rate Limit Strategy**: Free accounts are typically restricted to 15 RPM and 1 million TPM, alongside daily caps. Load-balancing across multiple Google API keys prevents any individual account from hitting the 15 RPM limit, ensuring long-context queries flow smoothly without timeouts.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 9,
+      "name": "Cerebras",
+      "api_base": "",
+      "description": "**Pros**: Unmatched Wafer-Scale Engine (WSE) speed (up to 1,800+ tokens/second). Exceptionally efficient for heavy batch processing.\n\n**Cons**: The free tier restricts RPM heavily (often 5\u201330 RPM). Note: Accessing certain models (like Gemma-4-31B) requires a verified payment card on file for the trial.\n\n**Rate Limit Strategy**: Cerebras uses a dual-bucket system tracking both RPM and TPM (uncached vs. total tokens). Multiplexing several Cerebras keys allows to pool uncached TPM allowances and bypass the tight RPM bottlenecks on massive models.\n\n**Note**: Gemma-4-31B needs payment card to work.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 11,
+      "name": "OpenRouter",
+      "api_base": "https://openrouter.ai/api/v1",
+      "description": "**Pros**: A powerful aggregator offering access to over 20 free models (using the :free suffix) via a single standardized API. No data training occurs on free endpoints.\n\n**Cons**: Free endpoints have rigid daily request ceilings (often 50\u2013200/day) and rely entirely on the stability of the upstream provider.\n\n**Rate Limit Strategy:** OpenRouter limits free accounts strictly at 20 RPM, alongside low daily caps. Spreading requests across multiple OpenRouter keys via LiteLLM allows to stack these daily quotas, circumventing the restrictive account-level ceilings.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 19,
+      "name": "Mistral",
+      "api_base": "",
+      "description": "**Pros**: High-quality open-weight models (like Codestral and Mistral Large) optimized for coding and complex logic workloads.\n\n**Cons**: Data submitted on the \"Experiment\" free tier may be used for model training. Rate limits also dynamically fluctuate based on Mistral's network load.\n\n**Rate Limit Strategy**: Mistral enforces varying RPM and TPM limits depending on current server capacity. Since free-tier keys are heavily throttled during peak hours, cycling through multiple keys ensures automatic failover, allowing LiteLLM to seamlessly retry stalled requests on an unthrottled key.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 20,
+      "name": "Cohere",
+      "api_base": "",
+      "description": "**Pros**: Industry-leading enterprise models explicitly specialized for Retrieval-Augmented Generation (Command R/R+), alongside top-tier Embed and Rerank endpoints.\n\n**Cons**: The Free Trial tier is restricted to non-commercial use only and is heavily throttled.\n\n**Rate Limit Strategy**: Cohere imposes very tight concurrency and RPM limits (often 10\u201320 RPM). By configuring multiple Cohere API keys in load balancer, instantly expand the pipeline's capacity, preventing constant 429 timeout errors during intensive RAG document processing workflows.",
+      "created_at": "2026-07-23 11:24:46"
+    },
+    {
+      "id": 21,
+      "name": "Ollama",
+      "api_base": "https://api.ollama.com",
+      "description": "**Pros**: Privacy-first architecture. The newly expanded Ollama Cloud tier offloads massive models to cloud GPUs for free, requiring no local hardware while maintaining local tool compatibility.\n\n**Cons**: The Free plan strictly limits cloud model execution to just one concurrent session at a time.\n\n**Rate Limit Strategy**: Instead of standard RPM, Ollama Cloud enforces strict concurrency limits (1 concurrent model slot per free account). Distributing requests across multiple Ollama Cloud API keys enables parallel processing, effectively bypassing the single-slot queue limitation for multi-agent workflows.",
+      "created_at": "2026-07-23 11:24:46"
+    }
+  ],
+  "models": [
+    {
+      "id": 3,
+      "provider_id": 1,
+      "name": "groq-qwen3.6-27b",
+      "actual_model": "qwen/qwen3.6-27b",
+      "model_type": "qwen3.6",
+      "rpm_limit": 30,
+      "tpm_limit": 8000,
+      "rpd_limit": 1000,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Multimodal, Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 4,
+      "provider_id": 1,
+      "name": "groq-llama-3.1-8b-instant",
+      "actual_model": "llama-3.1-8b-instant",
+      "model_type": "llama-3.1",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 14400,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Long Context"
+    },
+    {
+      "id": 5,
+      "provider_id": 1,
+      "name": "groq-openai/gpt-oss-120b",
+      "actual_model": "openai/gpt-oss-120b",
+      "model_type": "openai/gpt-oss",
+      "rpm_limit": 30,
+      "tpm_limit": 8000,
+      "rpd_limit": 1000,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context, Software Engineer"
+    },
+    {
+      "id": 6,
+      "provider_id": 1,
+      "name": "groq-openai/gpt-oss-20b",
+      "actual_model": "openai/gpt-oss-20b",
+      "model_type": "openai/gpt-oss",
+      "rpm_limit": 30,
+      "tpm_limit": 8000,
+      "rpd_limit": 1000,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 7,
+      "provider_id": 1,
+      "name": "groq-whisper-large-v3",
+      "actual_model": "whisper-large-v3",
+      "model_type": "whisper",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 2000,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Speech-to-text"
+    },
+    {
+      "id": 8,
+      "provider_id": 1,
+      "name": "groq-whisper-large-v3-turbo",
+      "actual_model": "whisper-large-v3-turbo",
+      "model_type": "whisper",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 2000,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Speech-to-text"
+    },
+    {
+      "id": 36,
+      "provider_id": 2,
+      "name": "google-gemma-4-26b-a4b-it",
+      "actual_model": "gemma-4-26b-a4b-it",
+      "model_type": "gemma-4",
+      "rpm_limit": 30,
+      "tpm_limit": 16000,
+      "rpd_limit": 14400,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Search/RAG, Coding"
+    },
+    {
+      "id": 37,
+      "provider_id": 2,
+      "name": "google-gemma-4-31b-it",
+      "actual_model": "gemma-4-31b-it",
+      "model_type": "gemma-4",
+      "rpm_limit": 30,
+      "tpm_limit": 16000,
+      "rpd_limit": 14400,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": [
+        "Reasoning",
+        "Coding",
+        "Multimodal",
+        "Long Context"
+      ]
+    },
+    {
+      "id": 38,
+      "provider_id": 2,
+      "name": "google-gemini-3.5-flash",
+      "actual_model": "gemini-3.5-flash",
+      "model_type": "gemini-3.5",
+      "rpm_limit": 5,
+      "tpm_limit": 250000,
+      "rpd_limit": 20,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": [
+        "Agentic",
+        "Coding",
+        "Long Context",
+        "Multimodal",
+        "Reasoning",
+        "Search/RAG"
+      ]
+    },
+    {
+      "id": 10,
+      "provider_id": 9,
+      "name": "cerebras-gpt-oss-120b",
+      "actual_model": "gpt-oss-120b",
+      "model_type": "gpt-oss",
+      "rpm_limit": 5,
+      "tpm_limit": 30000,
+      "rpd_limit": 2400,
+      "tpd_limit": 1000000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Coding, Agentic"
+    },
+    {
+      "id": 11,
+      "provider_id": 9,
+      "name": "cerebras-zai-glm-4.7-358B",
+      "actual_model": "zai-glm-4.7",
+      "model_type": "zai-glm",
+      "rpm_limit": 5,
+      "tpm_limit": 30000,
+      "rpd_limit": 2400,
+      "tpd_limit": 1000000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Coding, Agentic"
+    },
+    {
+      "id": 39,
+      "provider_id": 11,
+      "name": "openrouter-nvidia/nemotron-3-ultra-550b-a55b:free",
+      "actual_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "model_type": "nemotron-3-ultra",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Software Engineer"
+    },
+    {
+      "id": 41,
+      "provider_id": 11,
+      "name": "openrouter-poolside/laguna-m.1:free-226B",
+      "actual_model": "poolside/laguna-m.1:free",
+      "model_type": "laguna-m.1",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Coding, Agentic, Reasoning, Software Engineer"
+    },
+    {
+      "id": 42,
+      "provider_id": 11,
+      "name": "openrouter-nvidia/nemotron-3-super-120b-a12b:free",
+      "actual_model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "model_type": "nemotron-3",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 43,
+      "provider_id": 11,
+      "name": "openrouter-cohere/north-mini-code:free-30B",
+      "actual_model": "cohere/north-mini-code:free",
+      "model_type": "north-mini",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Coding, Agentic, Reasoning"
+    },
+    {
+      "id": 44,
+      "provider_id": 11,
+      "name": "openrouter-poolside/laguna-xs-2.1:free-33B",
+      "actual_model": "poolside/laguna-xs-2.1:free",
+      "model_type": "laguna-xs",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Coding, Agentic, Reasoning"
+    },
+    {
+      "id": 45,
+      "provider_id": 11,
+      "name": "openrouter-nvidia/nemotron-3-nano-30b-a3b:free",
+      "actual_model": "nvidia/nemotron-3-nano-30b-a3b:free",
+      "model_type": "nemotron-3",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 46,
+      "provider_id": 11,
+      "name": "openrouter-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "actual_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "model_type": "nemotron-3",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 47,
+      "provider_id": 11,
+      "name": "openrouter-poolside/laguna-s-2.1:free-118B",
+      "actual_model": "poolside/laguna-s-2.1:free",
+      "model_type": "laguna-s",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Coding, Agentic, Reasoning"
+    },
+    {
+      "id": 48,
+      "provider_id": 11,
+      "name": "openrouter-google/gemma-4-31b-it:free",
+      "actual_model": "google/gemma-4-31b-it:free",
+      "model_type": "gemma-4",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 49,
+      "provider_id": 11,
+      "name": "openrouter-google/gemma-4-26b-a4b-it:free",
+      "actual_model": "google/gemma-4-26b-a4b-it:free",
+      "model_type": "gemma-4",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 50,
+      "provider_id": 11,
+      "name": "openrouter-openai/gpt-oss-20b:free",
+      "actual_model": "openai/gpt-oss-20b:free",
+      "model_type": "gpt-oss",
+      "rpm_limit": 20,
+      "tpm_limit": 0,
+      "rpd_limit": 50,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": []
+    },
+    {
+      "id": 12,
+      "provider_id": 19,
+      "name": "mistral-ministral-3b-latest",
+      "actual_model": "ministral-3b-latest",
+      "model_type": "ministral-3b",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Long Context"
+    },
+    {
+      "id": 13,
+      "provider_id": 19,
+      "name": "mistral-ministral-8b-latest",
+      "actual_model": "ministral-8b-latest",
+      "model_type": "ministral-8b",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Long Context"
+    },
+    {
+      "id": 14,
+      "provider_id": 19,
+      "name": "mistral-open-mistral-nemo-12B",
+      "actual_model": "open-mistral-nemo",
+      "model_type": "mistral-nemo",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Long Context"
+    },
+    {
+      "id": 15,
+      "provider_id": 19,
+      "name": "mistral-mistral-small-latest-24B",
+      "actual_model": "mistral-small-latest",
+      "model_type": "mistral-small",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Coding, Long Context"
+    },
+    {
+      "id": 16,
+      "provider_id": 19,
+      "name": "mistral-codestral-latest-22B",
+      "actual_model": "codestral-latest",
+      "model_type": "codestral",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Coding, Agentic, Long Context"
+    },
+    {
+      "id": 18,
+      "provider_id": 19,
+      "name": "mistral-mistral-large-latest-123B",
+      "actual_model": "mistral-large-latest",
+      "model_type": "mistral-large",
+      "rpm_limit": 30,
+      "tpm_limit": 50000,
+      "rpd_limit": 1000,
+      "tpd_limit": 500000,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 4000000,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context, Research Writer"
+    },
+    {
+      "id": 28,
+      "provider_id": 20,
+      "name": "cohere-command-a-plus-05-2026-218B",
+      "actual_model": "command-a-plus-05-2026",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 150000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Multimodal, Reasoning, Agentic, Coding, Long Context, Research Writer"
+    },
+    {
+      "id": 29,
+      "provider_id": 20,
+      "name": "cohere-command-a-03-2025-111B",
+      "actual_model": "command-a-03-2025",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 150000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Search/RAG, Long Context"
+    },
+    {
+      "id": 30,
+      "provider_id": 20,
+      "name": "cohere-command-r7b-12-2024",
+      "actual_model": "command-r7b-12-2024",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 150000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Search/RAG, Long Context"
+    },
+    {
+      "id": 31,
+      "provider_id": 20,
+      "name": "cohere-command-a-vision-07-2025",
+      "actual_model": "command-a-vision-07-2025",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 150000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Multimodal, Agentic, Long Context"
+    },
+    {
+      "id": 32,
+      "provider_id": 20,
+      "name": "cohere-command-r-08-2024-32B",
+      "actual_model": "command-r-08-2024",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 50000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Search/RAG, Long Context"
+    },
+    {
+      "id": 33,
+      "provider_id": 20,
+      "name": "cohere-command-r-plus-08-2024-104B",
+      "actual_model": "command-r-plus-08-2024",
+      "model_type": "command",
+      "rpm_limit": 20,
+      "tpm_limit": 50000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Search/RAG, Long Context"
+    },
+    {
+      "id": 34,
+      "provider_id": 20,
+      "name": "cohere-embed-v4.0",
+      "actual_model": "embed-v4.0",
+      "model_type": "embed",
+      "rpm_limit": 20,
+      "tpm_limit": 50000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": null,
+      "skills": [
+        "Embedding",
+        "Multimodal",
+        "Long Context"
+      ]
+    },
+    {
+      "id": 35,
+      "provider_id": 20,
+      "name": "cohere-c4ai-aya-expanse-32B",
+      "actual_model": "c4ai-aya-expanse-32b",
+      "model_type": "aya",
+      "rpm_limit": 20,
+      "tpm_limit": 150000,
+      "rpd_limit": 500,
+      "tpd_limit": 200000,
+      "rpm_month_limit": 1000,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Agentic, Long Context"
+    },
+    {
+      "id": 51,
+      "provider_id": 21,
+      "name": "ollama-gemma4:31b-cloud",
+      "actual_model": "gemma4:31b-cloud",
+      "model_type": "gemma4",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context, Multimodal"
+    },
+    {
+      "id": 55,
+      "provider_id": 21,
+      "name": "ollama-nemotron-3-super:cloud-120B",
+      "actual_model": "nemotron-3-super:cloud",
+      "model_type": "nemotron-3",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 60,
+      "provider_id": 21,
+      "name": "ollama-nemotron-3-ultra:cloud-550B",
+      "actual_model": "nemotron-3-ultra:cloud",
+      "model_type": "nemotron-3-ultra",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 61,
+      "provider_id": 21,
+      "name": "ollama-gpt-oss:20b-cloud",
+      "actual_model": "gpt-oss:20b-cloud",
+      "model_type": "gpt-oss",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 62,
+      "provider_id": 21,
+      "name": "ollama-gpt-oss:120b-cloud",
+      "actual_model": "gpt-oss:120b-cloud",
+      "model_type": "gpt-oss",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    },
+    {
+      "id": 64,
+      "provider_id": 21,
+      "name": "ollama-nemotron-3-nano:30b-cloud",
+      "actual_model": "nemotron-3-nano:30b-cloud",
+      "model_type": "nemotron-3-nano",
+      "rpm_limit": 30,
+      "tpm_limit": 6000,
+      "rpd_limit": 0,
+      "tpd_limit": 0,
+      "rpm_month_limit": 0,
+      "tpm_month_limit": 0,
+      "timeout": 60,
+      "max_retries": 2,
+      "supports_function_calling": 1,
+      "skills": "Reasoning, Agentic, Coding, Long Context"
+    }
+  ],
+  "keys": [
+    {
+      "id": 3,
+      "provider_id": 1,
+      "key_name": "API Key 1",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_1",
+      "is_active": 1
+    },
+    {
+      "id": 4,
+      "provider_id": 1,
+      "key_name": "API Key 2",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_2",
+      "is_active": 1
+    },
+    {
+      "id": 5,
+      "provider_id": 1,
+      "key_name": "API Key 3",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_3",
+      "is_active": 1
+    },
+    {
+      "id": 6,
+      "provider_id": 1,
+      "key_name": "API Key 4",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_4",
+      "is_active": 1
+    },
+    {
+      "id": 7,
+      "provider_id": 1,
+      "key_name": "API Key 5",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_5",
+      "is_active": 1
+    },
+    {
+      "id": 8,
+      "provider_id": 1,
+      "key_name": "API Key 6",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_6",
+      "is_active": 1
+    },
+    {
+      "id": 9,
+      "provider_id": 1,
+      "key_name": "API Key 7",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_7",
+      "is_active": 1
+    },
+    {
+      "id": 10,
+      "provider_id": 1,
+      "key_name": "API Key 8",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_8",
+      "is_active": 1
+    },
+    {
+      "id": 11,
+      "provider_id": 1,
+      "key_name": "API Key 9",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_9",
+      "is_active": 1
+    },
+    {
+      "id": 12,
+      "provider_id": 1,
+      "key_name": "API Key 10",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_10",
+      "is_active": 1
+    },
+    {
+      "id": 61,
+      "provider_id": 1,
+      "key_name": "API Key 11",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_11",
+      "is_active": 1
+    },
+    {
+      "id": 66,
+      "provider_id": 1,
+      "key_name": "API Key 12",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_12",
+      "is_active": 1
+    },
+    {
+      "id": 75,
+      "provider_id": 1,
+      "key_name": "API Key 13",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_13",
+      "is_active": 1
+    },
+    {
+      "id": 99,
+      "provider_id": 1,
+      "key_name": "API Key 14",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_14",
+      "is_active": 1
+    },
+    {
+      "id": 106,
+      "provider_id": 1,
+      "key_name": "API Key 15",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_15",
+      "is_active": 1
+    },
+    {
+      "id": 113,
+      "provider_id": 1,
+      "key_name": "API Key 16",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_16",
+      "is_active": 1
+    },
+    {
+      "id": 119,
+      "provider_id": 1,
+      "key_name": "API Key 17",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_17",
+      "is_active": 1
+    },
+    {
+      "id": 46,
+      "provider_id": 2,
+      "key_name": "API Key 18",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_18",
+      "is_active": 1
+    },
+    {
+      "id": 47,
+      "provider_id": 2,
+      "key_name": "API Key 19",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_19",
+      "is_active": 1
+    },
+    {
+      "id": 48,
+      "provider_id": 2,
+      "key_name": "API Key 20",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_20",
+      "is_active": 1
+    },
+    {
+      "id": 49,
+      "provider_id": 2,
+      "key_name": "API Key 21",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_21",
+      "is_active": 1
+    },
+    {
+      "id": 62,
+      "provider_id": 2,
+      "key_name": "API Key 22",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_22",
+      "is_active": 1
+    },
+    {
+      "id": 67,
+      "provider_id": 2,
+      "key_name": "API Key 23",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_23",
+      "is_active": 1
+    },
+    {
+      "id": 76,
+      "provider_id": 2,
+      "key_name": "API Key 24",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_24",
+      "is_active": 1
+    },
+    {
+      "id": 100,
+      "provider_id": 2,
+      "key_name": "API Key 25",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_25",
+      "is_active": 1
+    },
+    {
+      "id": 109,
+      "provider_id": 2,
+      "key_name": "API Key 26",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_26",
+      "is_active": 1
+    },
+    {
+      "id": 120,
+      "provider_id": 2,
+      "key_name": "API Key 27",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_27",
+      "is_active": 1
+    },
+    {
+      "id": 13,
+      "provider_id": 9,
+      "key_name": "API Key 28",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_28",
+      "is_active": 1
+    },
+    {
+      "id": 14,
+      "provider_id": 9,
+      "key_name": "API Key 29",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_29",
+      "is_active": 1
+    },
+    {
+      "id": 15,
+      "provider_id": 9,
+      "key_name": "API Key 30",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_30",
+      "is_active": 1
+    },
+    {
+      "id": 16,
+      "provider_id": 9,
+      "key_name": "API Key 31",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_31",
+      "is_active": 1
+    },
+    {
+      "id": 17,
+      "provider_id": 9,
+      "key_name": "API Key 32",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_32",
+      "is_active": 1
+    },
+    {
+      "id": 18,
+      "provider_id": 9,
+      "key_name": "API Key 33",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_33",
+      "is_active": 1
+    },
+    {
+      "id": 19,
+      "provider_id": 9,
+      "key_name": "API Key 34",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_34",
+      "is_active": 1
+    },
+    {
+      "id": 20,
+      "provider_id": 9,
+      "key_name": "API Key 35",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_35",
+      "is_active": 1
+    },
+    {
+      "id": 21,
+      "provider_id": 9,
+      "key_name": "API Key 36",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_36",
+      "is_active": 1
+    },
+    {
+      "id": 22,
+      "provider_id": 9,
+      "key_name": "API Key 37",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_37",
+      "is_active": 1
+    },
+    {
+      "id": 23,
+      "provider_id": 9,
+      "key_name": "API Key 38",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_38",
+      "is_active": 1
+    },
+    {
+      "id": 63,
+      "provider_id": 9,
+      "key_name": "API Key 39",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_39",
+      "is_active": 1
+    },
+    {
+      "id": 68,
+      "provider_id": 9,
+      "key_name": "API Key 40",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_40",
+      "is_active": 1
+    },
+    {
+      "id": 69,
+      "provider_id": 9,
+      "key_name": "API Key 41",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_41",
+      "is_active": 1
+    },
+    {
+      "id": 79,
+      "provider_id": 9,
+      "key_name": "API Key 42",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_42",
+      "is_active": 1
+    },
+    {
+      "id": 85,
+      "provider_id": 9,
+      "key_name": "API Key 43",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_43",
+      "is_active": 1
+    },
+    {
+      "id": 101,
+      "provider_id": 9,
+      "key_name": "API Key 44",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_44",
+      "is_active": 1
+    },
+    {
+      "id": 108,
+      "provider_id": 9,
+      "key_name": "API Key 45",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_45",
+      "is_active": 1
+    },
+    {
+      "id": 114,
+      "provider_id": 9,
+      "key_name": "API Key 46",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_46",
+      "is_active": 1
+    },
+    {
+      "id": 121,
+      "provider_id": 9,
+      "key_name": "API Key 47",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_47",
+      "is_active": 1
+    },
+    {
+      "id": 51,
+      "provider_id": 11,
+      "key_name": "API Key 48",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_48",
+      "is_active": 1
+    },
+    {
+      "id": 52,
+      "provider_id": 11,
+      "key_name": "API Key 49",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_49",
+      "is_active": 1
+    },
+    {
+      "id": 53,
+      "provider_id": 11,
+      "key_name": "API Key 50",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_50",
+      "is_active": 1
+    },
+    {
+      "id": 54,
+      "provider_id": 11,
+      "key_name": "API Key 51",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_51",
+      "is_active": 1
+    },
+    {
+      "id": 55,
+      "provider_id": 11,
+      "key_name": "API Key 52",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_52",
+      "is_active": 1
+    },
+    {
+      "id": 56,
+      "provider_id": 11,
+      "key_name": "API Key 53",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_53",
+      "is_active": 1
+    },
+    {
+      "id": 57,
+      "provider_id": 11,
+      "key_name": "API Key 54",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_54",
+      "is_active": 1
+    },
+    {
+      "id": 58,
+      "provider_id": 11,
+      "key_name": "API Key 55",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_55",
+      "is_active": 1
+    },
+    {
+      "id": 59,
+      "provider_id": 11,
+      "key_name": "API Key 56",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_56",
+      "is_active": 1
+    },
+    {
+      "id": 60,
+      "provider_id": 11,
+      "key_name": "API Key 57",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_57",
+      "is_active": 1
+    },
+    {
+      "id": 70,
+      "provider_id": 11,
+      "key_name": "API Key 58",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_58",
+      "is_active": 1
+    },
+    {
+      "id": 74,
+      "provider_id": 11,
+      "key_name": "API Key 59",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_59",
+      "is_active": 1
+    },
+    {
+      "id": 80,
+      "provider_id": 11,
+      "key_name": "API Key 60",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_60",
+      "is_active": 1
+    },
+    {
+      "id": 84,
+      "provider_id": 11,
+      "key_name": "API Key 61",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_61",
+      "is_active": 1
+    },
+    {
+      "id": 87,
+      "provider_id": 11,
+      "key_name": "API Key 62",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_62",
+      "is_active": 1
+    },
+    {
+      "id": 102,
+      "provider_id": 11,
+      "key_name": "API Key 63",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_63",
+      "is_active": 1
+    },
+    {
+      "id": 107,
+      "provider_id": 11,
+      "key_name": "API Key 64",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_64",
+      "is_active": 1
+    },
+    {
+      "id": 115,
+      "provider_id": 11,
+      "key_name": "API Key 65",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_65",
+      "is_active": 1
+    },
+    {
+      "id": 122,
+      "provider_id": 11,
+      "key_name": "API Key 66",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_66",
+      "is_active": 1
+    },
+    {
+      "id": 24,
+      "provider_id": 19,
+      "key_name": "API Key 67",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_67",
+      "is_active": 1
+    },
+    {
+      "id": 25,
+      "provider_id": 19,
+      "key_name": "API Key 68",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_68",
+      "is_active": 1
+    },
+    {
+      "id": 26,
+      "provider_id": 19,
+      "key_name": "API Key 69",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_69",
+      "is_active": 1
+    },
+    {
+      "id": 27,
+      "provider_id": 19,
+      "key_name": "API Key 70",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_70",
+      "is_active": 1
+    },
+    {
+      "id": 28,
+      "provider_id": 19,
+      "key_name": "API Key 71",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_71",
+      "is_active": 1
+    },
+    {
+      "id": 29,
+      "provider_id": 19,
+      "key_name": "API Key 72",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_72",
+      "is_active": 1
+    },
+    {
+      "id": 30,
+      "provider_id": 19,
+      "key_name": "API Key 73",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_73",
+      "is_active": 1
+    },
+    {
+      "id": 31,
+      "provider_id": 19,
+      "key_name": "API Key 74",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_74",
+      "is_active": 1
+    },
+    {
+      "id": 32,
+      "provider_id": 19,
+      "key_name": "API Key 75",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_75",
+      "is_active": 1
+    },
+    {
+      "id": 33,
+      "provider_id": 19,
+      "key_name": "API Key 76",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_76",
+      "is_active": 1
+    },
+    {
+      "id": 34,
+      "provider_id": 19,
+      "key_name": "API Key 77",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_77",
+      "is_active": 1
+    },
+    {
+      "id": 35,
+      "provider_id": 19,
+      "key_name": "API Key 78",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_78",
+      "is_active": 1
+    },
+    {
+      "id": 64,
+      "provider_id": 19,
+      "key_name": "API Key 79",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_79",
+      "is_active": 1
+    },
+    {
+      "id": 71,
+      "provider_id": 19,
+      "key_name": "API Key 80",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_80",
+      "is_active": 1
+    },
+    {
+      "id": 73,
+      "provider_id": 19,
+      "key_name": "API Key 81",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_81",
+      "is_active": 1
+    },
+    {
+      "id": 81,
+      "provider_id": 19,
+      "key_name": "API Key 82",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_82",
+      "is_active": 1
+    },
+    {
+      "id": 83,
+      "provider_id": 19,
+      "key_name": "API Key 83",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_83",
+      "is_active": 1
+    },
+    {
+      "id": 88,
+      "provider_id": 19,
+      "key_name": "API Key 84",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_84",
+      "is_active": 1
+    },
+    {
+      "id": 103,
+      "provider_id": 19,
+      "key_name": "API Key 85",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_85",
+      "is_active": 1
+    },
+    {
+      "id": 110,
+      "provider_id": 19,
+      "key_name": "API Key 86",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_86",
+      "is_active": 1
+    },
+    {
+      "id": 116,
+      "provider_id": 19,
+      "key_name": "API Key 87",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_87",
+      "is_active": 1
+    },
+    {
+      "id": 123,
+      "provider_id": 19,
+      "key_name": "API Key 88",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_88",
+      "is_active": 1
+    },
+    {
+      "id": 36,
+      "provider_id": 20,
+      "key_name": "API Key 89",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_89",
+      "is_active": 1
+    },
+    {
+      "id": 37,
+      "provider_id": 20,
+      "key_name": "API Key 90",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_90",
+      "is_active": 1
+    },
+    {
+      "id": 38,
+      "provider_id": 20,
+      "key_name": "API Key 91",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_91",
+      "is_active": 1
+    },
+    {
+      "id": 39,
+      "provider_id": 20,
+      "key_name": "API Key 92",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_92",
+      "is_active": 1
+    },
+    {
+      "id": 40,
+      "provider_id": 20,
+      "key_name": "API Key 93",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_93",
+      "is_active": 1
+    },
+    {
+      "id": 41,
+      "provider_id": 20,
+      "key_name": "API Key 94",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_94",
+      "is_active": 1
+    },
+    {
+      "id": 42,
+      "provider_id": 20,
+      "key_name": "API Key 95",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_95",
+      "is_active": 1
+    },
+    {
+      "id": 43,
+      "provider_id": 20,
+      "key_name": "API Key 96",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_96",
+      "is_active": 1
+    },
+    {
+      "id": 44,
+      "provider_id": 20,
+      "key_name": "API Key 97",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_97",
+      "is_active": 1
+    },
+    {
+      "id": 45,
+      "provider_id": 20,
+      "key_name": "API Key 98",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_98",
+      "is_active": 1
+    },
+    {
+      "id": 65,
+      "provider_id": 20,
+      "key_name": "API Key 99",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_99",
+      "is_active": 1
+    },
+    {
+      "id": 72,
+      "provider_id": 20,
+      "key_name": "API Key 100",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_100",
+      "is_active": 1
+    },
+    {
+      "id": 82,
+      "provider_id": 20,
+      "key_name": "API Key 101",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_101",
+      "is_active": 1
+    },
+    {
+      "id": 89,
+      "provider_id": 20,
+      "key_name": "API Key 102",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_102",
+      "is_active": 1
+    },
+    {
+      "id": 104,
+      "provider_id": 20,
+      "key_name": "API Key 103",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_103",
+      "is_active": 1
+    },
+    {
+      "id": 111,
+      "provider_id": 20,
+      "key_name": "API Key 104",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_104",
+      "is_active": 1
+    },
+    {
+      "id": 117,
+      "provider_id": 20,
+      "key_name": "API Key 105",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_105",
+      "is_active": 1
+    },
+    {
+      "id": 124,
+      "provider_id": 20,
+      "key_name": "API Key 106",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_106",
+      "is_active": 1
+    },
+    {
+      "id": 86,
+      "provider_id": 21,
+      "key_name": "API Key 107",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_107",
+      "is_active": 1
+    },
+    {
+      "id": 90,
+      "provider_id": 21,
+      "key_name": "API Key 108",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_108",
+      "is_active": 1
+    },
+    {
+      "id": 91,
+      "provider_id": 21,
+      "key_name": "API Key 109",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_109",
+      "is_active": 1
+    },
+    {
+      "id": 92,
+      "provider_id": 21,
+      "key_name": "API Key 110",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_110",
+      "is_active": 1
+    },
+    {
+      "id": 93,
+      "provider_id": 21,
+      "key_name": "API Key 111",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_111",
+      "is_active": 1
+    },
+    {
+      "id": 94,
+      "provider_id": 21,
+      "key_name": "API Key 112",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_112",
+      "is_active": 1
+    },
+    {
+      "id": 95,
+      "provider_id": 21,
+      "key_name": "API Key 113",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_113",
+      "is_active": 1
+    },
+    {
+      "id": 96,
+      "provider_id": 21,
+      "key_name": "API Key 114",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_114",
+      "is_active": 1
+    },
+    {
+      "id": 97,
+      "provider_id": 21,
+      "key_name": "API Key 115",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_115",
+      "is_active": 1
+    },
+    {
+      "id": 98,
+      "provider_id": 21,
+      "key_name": "API Key 116",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_116",
+      "is_active": 1
+    },
+    {
+      "id": 105,
+      "provider_id": 21,
+      "key_name": "API Key 117",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_117",
+      "is_active": 1
+    },
+    {
+      "id": 112,
+      "provider_id": 21,
+      "key_name": "API Key 118",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_118",
+      "is_active": 1
+    },
+    {
+      "id": 118,
+      "provider_id": 21,
+      "key_name": "API Key 119",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_119",
+      "is_active": 1
+    },
+    {
+      "id": 125,
+      "provider_id": 21,
+      "key_name": "API Key 120",
+      "key_value": "YOUR_API_KEY_PLACEHOLDER_120",
+      "is_active": 1
+    }
+  ],
+  "aggregations": [],
+  "rotation_settings": {
+    "routing_strategy": "simple-shuffle",
+    "key_rotation_strategy": "round-robin",
+    "cooldown_time": 60,
+    "allowed_fails": 2,
+    "num_retries": 1
+  },
+  "name": "Version du 25 Juillet 2026",
+  "description": "Add coding engineer and scientific writer tags. And add new keys."
+}

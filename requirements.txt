@@ -1,0 +1,8 @@
+# LiteLLM Helper v3 Requirements
+flask>=2.0.3
+pyyaml>=6.0
+litellm>=1.70.0
+
+# Optional: For model health checking, install litellm separately if your system supports it.
+# pip install litellm>=1.70.0  # Requires Rust/Cargo for source builds; wheels are available for most platforms
+# On systems without Rust toolchain, skip this feature or use a prebuilt wheel.

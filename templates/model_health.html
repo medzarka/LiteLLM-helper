@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <div>
+        <h1 class="h2 mb-1"><i class="bi bi-heart-pulse text-danger me-2"></i>Model Health Monitor</h1>
+        <p class="text-muted mb-0">Probe active AI model endpoints and track real-time 20-run uptime availability history.</p>
+    </div>
+    <button class="btn btn-primary" id="runHealthCheck">
+        <i class="bi bi-arrow-repeat me-1"></i> Run Health Check
+    </button>
+</div>
+
+{% if models|selectattr('last_status', 'eq', 'skipped')|list|length == models|length and models|length > 0 %}
+<div class="alert alert-warning shadow-sm border-0" id="litellm-warning">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>litellm package missing:</strong> Install <code>pip install litellm</code> to enable live model health checks. Models currently return "skipped".
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-light fw-bold py-3">
+                <i class="bi bi-speedometer2 me-2 text-primary"></i>Health Status Summary
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 col-6 border-end">
+                        <h3 class="fw-bold text-success mb-1">{{ models|selectattr('last_status', 'eq', 'ok')|list|length }}</h3>
+                        <span class="text-muted small text-uppercase">Operational (OK)</span>
+                    </div>
+                    <div class="col-md-3 col-6 border-end">
+                        <h3 class="fw-bold text-danger mb-1">{{ models|selectattr('last_status', 'eq', 'not_found')|list|length }}</h3>
+                        <span class="text-muted small text-uppercase">Not Found</span>
+                    </div>
+                    <div class="col-md-3 col-6 border-end">
+                        <h3 class="fw-bold text-warning mb-1">{{ models|selectattr('last_status', 'eq', 'error')|list|length }}</h3>
+                        <span class="text-muted small text-uppercase">Errors</span>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <h3 class="fw-bold text-secondary mb-1">{{ models|selectattr('last_status', 'eq', 'skipped')|list|length }}</h3>
+                        <span class="text-muted small text-uppercase">Skipped / Pending</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="health-table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 20%;">Model Name</th>
+                        <th style="width: 12%;">Provider</th>
+                        <th style="width: 15%;">Last Success</th>
+                        <th style="width: 38%;">Uptime History (Last 20 Runs)</th>
+                        <th style="width: 15%;" class="text-end">Latest Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr data-model-id="{{ model.id }}">
+                        <td>
+                            <div class="fw-bold">{{ model.name }}</div>
+                            <small class="text-muted"><code>{{ model.actual_model }}</code></small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ model.provider_name }}</span>
+                            {% if model.model_type %}
+                            <span class="badge bg-info text-dark ms-1">{{ model.model_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.last_success_at %}
+                            <span class="text-success small fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>{{ model.last_success_at }}</span>
+                            {% else %}
+                            <span class="text-muted small"><i class="bi bi-dash-circle me-1"></i>Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- 20 Squares Bar -->
+                            <div class="d-flex align-items-center gap-1 flex-wrap py-1">
+                                {% set hist_len = model.history|length %}
+                                {% set padding = 20 - hist_len %}
+                                
+                                <!-- Empty slots for missing checks (left side) -->
+                                {% if padding > 0 %}
+                                    {% for i in range(padding) %}
+                                    <div class="uptime-square border" 
+                                         style="width: 14px; height: 22px; border-radius: 3px; background-color: #f8f9fa; border-color: #dee2e6!important;" 
+                                         data-bs-toggle="tooltip" 
+                                         title="No check record yet"></div>
+                                    {% endfor %}
+                                {% endif %}
+                                
+                                <!-- Actual 20 run history (oldest to newest) -->
+                                {% for check in model.history %}
+                                    {% if check.status == 'ok' %}
+                                        <div class="uptime-square bg-success" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="OK | {{ check.checked_at }}"></div>
+                                    {% elif check.status == 'skipped' %}
+                                        <div class="uptime-square bg-secondary" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="Skipped | {{ check.checked_at }} | {{ check.message }}"></div>
+                                    {% else %}
+                                        <div class="uptime-square bg-danger" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="{{ check.status|upper }} | {{ check.checked_at }} | {{ check.message }}"></div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            {% if model.last_status == 'ok' %}
+                            <span class="badge bg-success px-2 py-1"><i class="bi bi-check-lg me-1"></i>OK</span>
+                            {% elif model.last_status == 'not_found' %}
+                            <span class="badge bg-danger px-2 py-1"><i class="bi bi-x-circle me-1"></i>Not Found</span>
+                            {% elif model.last_status == 'error' %}
+                            <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-exclamation-triangle me-1"></i>Error</span>
+                            {% else %}
+                            <span class="badge bg-secondary px-2 py-1">{{ model.last_status or 'Never' }}</span>
+                            {% endif %}
+
+                            {% if model.last_message %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary view-error-btn ms-1"
+                                    data-model-name="{{ model.name }} ({{ model.actual_model }})"
+                                    data-status="{{ model.last_status }}"
+                                    data-error-msg="{{ model.last_message }}"
+                                    data-bs-toggle="tooltip" title="View exception / check message">
+                                <i class="bi bi-info-circle-fill"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 d-none" id="progress-section">
+    <div class="alert alert-info border-0 shadow-sm">
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            <span>Probing model endpoints... please wait.</span>
+        </div>
+    </div>
+</div>
+
+<!-- Health Check Message Details Modal -->
+<div class="modal fade" id="healthErrorModal" tabindex="-1" aria-labelledby="healthErrorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="healthErrorModalLabel"><i class="bi bi-bug-fill me-2 text-warning"></i>Health Check Message Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="fw-bold mb-2" id="modal-model-title">Model Name</h6>
+                <div class="mb-3">
+                    <span class="badge" id="modal-status-badge">Status</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold">Message / Exception Output:</label>
+                    <pre class="p-3 rounded border bg-light text-dark" id="modal-error-content" style="white-space: pre-wrap; word-break: break-word; font-family: monospace; max-height: 400px; overflow-y: auto;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function initTooltips() {
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    }
+    initTooltips();
+
+    const errorModalEl = document.getElementById('healthErrorModal');
+    const errorModal = new bootstrap.Modal(errorModalEl);
+
+    document.querySelectorAll('.view-error-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const name = this.getAttribute('data-model-name');
+            const status = this.getAttribute('data-status');
+            const msg = this.getAttribute('data-error-msg') || 'No error message recorded.';
+
+            document.getElementById('modal-model-title').textContent = name;
+            document.getElementById('modal-error-content').textContent = msg;
+
+            const badge = document.getElementById('modal-status-badge');
+            badge.className = 'badge';
+            if (status === 'ok') {
+                badge.classList.add('bg-success');
+                badge.textContent = 'Operational (OK)';
+            } else if (status === 'not_found') {
+                badge.classList.add('bg-danger');
+                badge.textContent = 'Not Found';
+            } else if (status === 'error') {
+                badge.classList.add('bg-warning', 'text-dark');
+                badge.textContent = 'Error';
+            } else {
+                badge.classList.add('bg-secondary');
+                badge.textContent = status || 'Skipped';
+            }
+
+            errorModal.show();
+        });
+    });
+
+    const btn = document.getElementById('runHealthCheck');
+    const progress = document.getElementById('progress-section');
+
+    btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        progress.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/models/health/run', { method: 'POST' });
+            if (response.ok) {
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                alert('Health check failed - see server logs');
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            progress.classList.add('d-none');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3">
+    <h1 class="h2">Aggregated Models</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#mergeModelsModal">
+        <i class="bi bi-shuffle"></i> Merge Models
+    </button>
+</div>
+
+<div class="row mb-4" id="aggregation-controls">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Aggregation Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 col-6">
+                        <div class="text-center">
+                            <h3>{{ aggregated_count }}</h3>
+                            <p class="text-muted mb-0">Unique Aggregations</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center">
+                            <h3>{{ total_models }}</h3>
+                            <p class="text-muted mb-0">Total Models</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center">
+                            <h3>{{ total_providers }}</h3>
+                            <p class="text-muted mb-0">Providers Used</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center">
+                            <h3>{{ total_active_keys }}</h3>
+                            <p class="text-muted mb-0">Active Keys</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover" id="aggregation-table">
+        <thead class="table-dark">
+            <tr>
+                <th>Shared Model Name</th>
+                <th>Providers</th>
+                <th>Models</th>
+                <th>Keys Available</th>
+                <th>Skills</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for aggregation in aggregations %}
+            <tr data-aggregation-name="{{ aggregation.shared_name }}">
+                <td><strong>{{ aggregation.shared_name }}</strong></td>
+                <td>
+                    {% for provider_name in aggregation.providers %}
+                    <span class="badge bg-secondary">{{ provider_name }}</span>
+                    {% endfor %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#models-{{ loop.index }}"
+                            aria-expanded="false" aria-controls="models-{{ loop.index }}">
+                        Show models ({{ aggregation.total_models }})
+                    </button>
+                </td>
+                <td>
+                    <span class="badge bg-success">{{ aggregation.total_keys }}</span> {{ 'Available Keys' if aggregation.total_keys != 1 else 'Available Key' }}
+                    <br>
+                    <small class="text-muted">RPM: {{ aggregation.total_rpm }}, TPM: {{ aggregation.total_tpm }}</small>
+                    <br>
+                    <small class="text-muted">{% for pname, pinfo in aggregation.providers.items() %}{{ pname }}: {{ pinfo.keys }}{% if not loop.last %} · {% endif %}{% endfor %}</small>
+                </td>
+                <td>
+                    {% if aggregation.skills|length > 0 %}
+                    {% for skill in aggregation.skills|unique %}
+                    <span class="badge bg-info">{{ skill }}</span>
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary edit-aggregation"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editAggregationModal"
+                            data-aggregation='{{ aggregation|tojson }}'>
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger cancel-aggregation"
+                            data-aggregation-name="{{ aggregation.shared_name }}">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="6" class="p-0 border-0">
+                    <div class="collapse" id="models-{{ loop.index }}">
+                        <div class="p-3 bg-light">
+                            <ul class="mb-0">
+                                {% for m in aggregation.models %}
+                                <li class="mb-1">
+                                    <strong>{{ m.name }}</strong>
+                                    <span class="text-muted">— {{ m.provider_name }} →</span>
+                                    <code>{{ m.actual_model }}</code>
+                                    <small class="text-muted">(RPM {{ m.rpm_limit }}, TPM {{ m.tpm_limit }})</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Merge Models Modal -->
+<div class="modal fade" id="mergeModelsModal" tabindex="-1" aria-labelledby="mergeModelsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="merge-models-form">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mergeModelsModalLabel">Merge Models into Aggregation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="mergeSharedName" class="form-label">Aggregated Model Name *</label>
+                        <input type="text" class="form-control" id="mergeSharedName" name="shared_name" required>
+                        <div class="form-text">This will be the shared name for all selected models</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Models to Include</label>
+                        <div class="border rounded p-3" id="model-selection-container">
+                            <p class="text-muted">Model selection interface will be implemented with backend API integration</p>
+                            <!-- TODO: Implement model selection with checkboxes -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Aggregation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Aggregation Modal -->
+<div class="modal fade" id="editAggregationModal" tabindex="-1" aria-labelledby="editAggregationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="edit-aggregation-form">
+                <input type="hidden" id="edit-aggregation-name" name="shared_name">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editAggregationModalLabel">Edit Aggregation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-aggregationName" class="form-label">Shared Model Name</label>
+                        <input type="text" class="form-control" id="edit-aggregationName" name="shared_name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Models in Aggregation</label>
+                        <div class="border rounded p-3" id="aggregation-models-list">
+                            <!-- Populated via JavaScript -->
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-aggregationSkills" class="form-label">Skills (comma-separated, will be inherited)</label>
+                        <input type="text" class="form-control" id="edit-aggregationSkills" name="aggregated_skills">
+                        <div class="form-text">Skills from all models in the aggregation will be collected</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Populate the model-selection checklist for the Merge modal
+    async function populateModelSelection() {
+        try {
+            const response = await fetch('/api/models');
+            if (!response.ok) return;
+            const models = await response.json();
+            const container = document.getElementById('model-selection-container');
+            if (!container) return;
+            container.innerHTML = models.map(m => `
+                <div class="form-check">
+                    <input class="form-check-input merge-model" type="checkbox" value="${m.id}" id="merge-model-${m.id}">
+                    <label class="form-check-label" for="merge-model-${m.id}">
+                        <strong>${m.name}</strong> <small class="text-muted">(${m.provider_name} / ${m.actual_model})</small>
+                    </label>
+                </div>
+            `).join('');
+        } catch (e) { /* non-fatal */ }
+    }
+    populateModelSelection();
+
+    // Merge models -> create a new aggregation
+    document.getElementById('merge-models-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const sharedName = document.getElementById('mergeSharedName').value.trim();
+        const selected = Array.from(document.querySelectorAll('.merge-model:checked')).map(cb => parseInt(cb.value, 10));
+        if (!sharedName) { alert('Please enter an aggregated model name'); return; }
+        if (selected.length === 0) { alert('Please select at least one model'); return; }
+        try {
+            const response = await fetch('/aggregations', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ shared_name: sharedName, model_ids: selected })
+            });
+            if (response.ok) {
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'failed'));
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        }
+    });
+
+    // Cancel (delete) an aggregation
+    document.querySelectorAll('.cancel-aggregation').forEach(button => {
+        button.addEventListener('click', async function() {
+            const name = this.getAttribute('data-aggregation-name');
+            if (!confirm(`Cancel aggregation "${name}"? This reverts those models back to their individual provider names.`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/aggregations/${encodeURIComponent(name)}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.error || 'failed'));
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            }
+        });
+    });
+
+    // Edit aggregation button -> populate modal
+    document.querySelectorAll('.edit-aggregation').forEach(button => {
+        button.addEventListener('click', function() {
+            const aggregation = JSON.parse(this.getAttribute('data-aggregation'));
+            document.getElementById('edit-aggregation-name').value = aggregation.shared_name;
+            document.getElementById('edit-aggregationName').value = aggregation.shared_name;
+            const modelsList = aggregation.models.map(m => `
+                <div class="mb-2 p-2 bg-light rounded">
+                    <strong>${m.name}</strong> (${m.provider_name})<br>
+                    <small class="text-muted">Actual: ${m.actual_model}</small><br>
+                    <small class="text-muted">Keys available: ${aggregation.total_keys}</small>
+                </div>
+            `).join('');
+            document.getElementById('aggregation-models-list').innerHTML = modelsList;
+            document.getElementById('edit-aggregationSkills').value = (aggregation.skills || []).join(', ');
+        });
+    });
+
+    // Edit aggregation form -> rename / update skills
+    document.getElementById('edit-aggregation-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const originalName = document.getElementById('edit-aggregation-name').value;
+        const newName = document.getElementById('edit-aggregationName').value.trim();
+        const skills = document.getElementById('edit-aggregationSkills').value
+            .split(',').map(s => s.trim()).filter(Boolean);
+        if (!newName) { alert('Shared model name cannot be empty'); return; }
+        try {
+            const response = await fetch(`/aggregations/${encodeURIComponent(originalName)}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ shared_name: newName, skills: skills })
+            });
+            if (response.ok) {
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'failed'));
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}

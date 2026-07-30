@@ -1,0 +1,7 @@
+{
+  "routing_strategy": "simple-shuffle",
+  "key_rotation_strategy": "round-robin",
+  "cooldown_time": 60,
+  "allowed_fails": 2,
+  "num_retries": 1
+}

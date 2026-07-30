@@ -1,0 +1,25 @@
+import sys
+import os
+
+# Add the project root directory to Python path
+# __file__ = /path/to/litellm_helper/v3/run.py
+# dirname once = /path/to/litellm_helper/v3/
+# dirname twice = /path/to/litellm_helper/
+# dirname thrice = /path/to/litellm/  (project root)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+
+# Set Flask environment
+os.environ['FLASK_ENV'] = 'development'
+
+# Now we can import from litellm_helper.v3
+try:
+    from .app import create_app
+except ImportError:
+    from app import create_app
+
+if __name__ == '__main__':
+    print(f"Starting LiteLLM Helper v3...")
+    print(f"Project root: {project_root}")
+    app = create_app()
+    app.run(debug=True, host='0.0.0.0', port=5001)

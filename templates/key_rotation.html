@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3">
+    <h1 class="h2">Key Rotation Configuration</h1>
+    <a href="{{ url_for('providers') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Router Settings</h5>
+            </div>
+            <div class="card-body">
+                <form id="rotation-settings-form">
+                    <div class="mb-3">
+                        <label for="routingStrategy" class="form-label">Routing Strategy</label>
+                        <select class="form-select" id="routingStrategy" name="routing_strategy">
+                            <option value="simple-shuffle" {% if rotation_settings.routing_strategy == 'simple-shuffle' %}selected{% endif %}>Simple Shuffle</option>
+                            <option value="latency-based" {% if rotation_settings.routing_strategy == 'latency-based' %}selected{% endif %}>Latency-Based</option>
+                            <option value="cost-based" {% if rotation_settings.routing_strategy == 'cost-based' %}selected{% endif %}>Cost-Based</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="keyRotationStrategy" class="form-label">Key Rotation Strategy</label>
+                        <select class="form-select" id="keyRotationStrategy" name="key_rotation_strategy">
+                            <option value="least-requests" {% if rotation_settings.key_rotation_strategy == 'least-requests' %}selected{% endif %}>Least Requests (Default)</option>
+                            <option value="round-robin" {% if rotation_settings.key_rotation_strategy == 'round-robin' %}selected{% endif %}>Round Robin</option>
+                            <option value="random" {% if rotation_settings.key_rotation_strategy == 'random' %}selected{% endif %}>Random</option>
+                            <option value="weighted" {% if rotation_settings.key_rotation_strategy == 'weighted' %}selected{% endif %}>Weighted (by RPM/TPM)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cooldownTime" class="form-label">Cooldown Time (seconds)</label>
+                        <input type="number" class="form-control" id="cooldownTime" name="cooldown_time" value="{{ rotation_settings.cooldown_time }}" min="0">
+                        <div class="form-text">Minimum time between rotation attempts for a given key</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="allowedFails" class="form-label">Allowed Fails</label>
+                        <input type="number" class="form-control" id="allowedFails" name="allowed_fails" value="{{ rotation_settings.allowed_fails }}" min="0">
+                        <div class="form-text">Number of consecutive failed requests before a key is considered unhealthy</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="numRetries" class="form-label">Number of Retries</label>
+                        <input type="number" class="form-control" id="numRetries" name="num_retries" value="{{ rotation_settings.num_retries }}" min="0">
+                        <div class="form-text">Total number of retry attempts before giving up on a request</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                        <button type="button" class="btn btn-outline-secondary" id="resetSettingsBtn">Reset to Defaults</button>
+                    </div>
+                </form>
+
+                <script>
+                document.getElementById('resetSettingsBtn').addEventListener('click', async function() {
+                    try {
+                        const response = await fetch('/key-rotation/reset', {
+                            method: 'POST'
+                        });
+                            
+                        if (response.ok) {
+                            // Reload the page to show default settings
+                            window.location.reload();
+                        } else {
+                            const error = await response.json();
+                            alert('Error: ' + error.error);
+                        }
+                    } catch (error) {
+                        alert('Network error: ' + error.message);
+                    }
+                });
+                </script>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Test Key Rotation</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="testModel" class="form-label">Select Aggregated Model to Test</label>
+                    <select class="form-select" id="testModel">
+                        <option value="">-- Choose Model --</option>
+                        {% for model in aggregated_models %}
+                        <option value="{{ model.shared_name }}">{{ model.shared_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <button class="btn btn-outline-primary w-100" id="testRotationBtn" disabled>
+                        <i class="bi bi-play"></i> Test Rotation Sequence
+                    </button>
+                </div>
+                <div class="mt-3 pt-2 border-top" id="rotationResults">
+                    <p class="text-muted">Test results will appear here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Enable test button when model is selected
+    document.getElementById('testModel').addEventListener('change', function() {
+        document.getElementById('testRotationBtn').disabled = !this.value;
+    });
+
+    // Test rotation
+    document.getElementById('testRotationBtn').addEventListener('click', async function() {
+        const modelName = document.getElementById('testModel').value;
+        if (!modelName) return;
+        
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Testing...';
+        
+        try {
+            const response = await fetch(`/key-rotation/test?model=${encodeURIComponent(modelName)}`, {
+                method: 'GET'
+            });
+            
+            if (response.ok) {
+                const results = await response.json();
+                let html = '<h6>Rotation Sequence:</h6><ol class="mb-0">';
+                results.sequence.forEach((key, index) => {
+                    html += `<li>Request ${index + 1}: ${key.provider} - ${key.key_name}</li>`;
+                });
+                html += '</ol>';
+                if (results.warning) {
+                    html += `<div class="alert alert-warning mt-3">${results.warning}</div>`;
+                }
+                document.getElementById('rotationResults').innerHTML = html;
+            } else {
+                const error = await response.json();
+                document.getElementById('rotationResults').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.error}</div>`;
+            }
+        } catch (error) {
+            document.getElementById('rotationResults').innerHTML = 
+                `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+        } finally {
+            document.getElementById('testRotationBtn').disabled = false;
+            document.getElementById('testRotationBtn').innerHTML = '<i class="bi bi-play"></i> Test Rotation Sequence';
+        }
+    });
+
+    // Save rotation settings
+    document.getElementById('rotation-settings-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        try {
+            const response = await fetch('/key-rotation/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                // Show success message
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+                alertDiv.role = 'alert';
+                alertDiv.innerHTML = 'Settings saved successfully!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+                this.parentNode.insertBefore(alertDiv, this.nextSibling);
+                
+                // Remove alert after 3 seconds
+                setTimeout(() => alertDiv.remove(), 3000);
+            } else {
+                const error = await response.json();
+                alert('Error: ' + error.error);
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}

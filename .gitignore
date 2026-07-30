@@ -1,0 +1,36 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# SQLite Database files (contains active local API keys)
+data/*.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Python Virtual Environment
+venv/
+env/
+.venv/
+ENV/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Temporary & Scratch Files
+tmp/
+*.log
+
+# OS & System Files
+.DS_Store
+Thumbs.db
+
+# IDE Files
+.vscode/
+.idea/
+*.swp

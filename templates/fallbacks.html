@@ -7,6 +7,9 @@
         <p class="text-muted mb-0">Configure primary-to-secondary fallback chains for LiteLLM router when models fail or encounter rate limits.</p>
     </div>
     <div class="d-flex gap-2">
+        <button class="btn btn-outline-danger" onclick="clearAllFallbacks()">
+            <i class="bi bi-trash me-1"></i> Clear All
+        </button>
         <button class="btn btn-outline-success" onclick="generateSmartFallbacks()">
             <i class="bi bi-magic me-1"></i> Auto-Generate Smart Fallbacks
         </button>
@@ -289,6 +292,24 @@ function deleteFallback(primaryModel) {
             setTimeout(() => window.location.reload(), 800);
         } else {
             alert(data.error || 'Failed to delete fallback rule.');
+        }
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function clearAllFallbacks() {
+    if (!confirm('Are you sure you want to delete ALL fallback rules? This cannot be undone.')) return;
+
+    fetch('/api/fallbacks/clear', {
+        method: 'DELETE'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`Successfully cleared all fallback rules.`);
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            alert(data.error || 'Failed to clear fallback rules.');
         }
     })
     .catch(err => alert('Error: ' + err));

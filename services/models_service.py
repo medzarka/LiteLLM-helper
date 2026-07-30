@@ -81,6 +81,12 @@ class ModelService:
     def delete_fallback(self, primary_model: str) -> bool:
         return db_models.ModelFallback(self.db).delete(primary_model)
 
+    def clear_all_fallbacks(self) -> int:
+        cursor = self.db.conn.cursor()
+        cursor.execute('DELETE FROM model_fallback')
+        self.db.conn.commit()
+        return cursor.rowcount
+
     # ---------- Helper ----------
     def close(self):
         self.db.close()

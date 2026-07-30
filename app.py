@@ -453,6 +453,20 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
+    @app.route('/api/fallbacks/clear', methods=['DELETE'])
+    def clear_all_fallbacks_api():
+        try:
+            from .services.models_service import ModelService
+        except (ImportError, ValueError):
+            from services.models_service import ModelService
+        try:
+            svc = ModelService()
+            count = svc.clear_all_fallbacks()
+            svc.close()
+            return jsonify({'success': True, 'count': count})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
     @app.route('/api/fallbacks/<path:primary_model>', methods=['DELETE'])
     def delete_fallback_api(primary_model):
         try:

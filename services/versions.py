@@ -74,6 +74,11 @@ def capture_state():
     fallbacks = ModelFallback(db).get_all()
     db.close()
 
+    try:
+        from .hermes import load_hermes_agents
+    except (ImportError, ValueError):
+        from hermes import load_hermes_agents
+
     return {
         'captured_at': datetime.datetime.now().isoformat(timespec='seconds'),
         'providers': providers,
@@ -82,6 +87,7 @@ def capture_state():
         'fallbacks': fallbacks,
         'aggregations': load_aggregations(),
         'rotation_settings': load_rotation_settings(),
+        'hermes_agents': load_hermes_agents(),
     }
 
 
@@ -147,6 +153,13 @@ def apply_state(state):
     _write_json('aggregations.json', state.get('aggregations', []))
     _write_json('rotation_settings.json', state.get('rotation_settings', {}))
     _write_json('fallbacks.json', state.get('fallbacks', []))
+    
+    # Restore Hermes agents
+    try:
+        from .hermes import save_hermes_agents
+    except (ImportError, ValueError):
+        from hermes import save_hermes_agents
+    save_hermes_agents(state.get('hermes_agents', {}))
 
 
 # --------------------------------------------------------------------------

@@ -9,12 +9,12 @@ services:
     container_name: litellm-helper
     restart: unless-stopped
     ports:
-      - "${PORT:-5001}:${PORT:-5001}"
+      - "${LITELLM_HELPER_PORT}:${LITELLM_HELPER_PORT}"
     volumes:
       - ${WORKDIR}/litellm-helper:/app/data
       - ${WORKDIR}/litellm:/app/shared
     environment:
-      - PORT=${PORT:-5001}
+      - PORT=${LITELLM_HELPER_PORT}
       - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
 
@@ -26,7 +26,7 @@ services:
     container_name: litellm
     restart: unless-stopped
     ports:
-      - "${LITELLM_PORT:-4000}:4000"
+      - "4000:4000"
     volumes:
       - ${WORKDIR}/litellm/config.yaml:/app/config.yaml
     environment:
@@ -46,8 +46,8 @@ services:
     container_name: qdrant
     restart: unless-stopped
     ports:
-      - "${QDRANT_PORT:-6333}:6333"
-      - "${QDRANT_PORT_P2:-6334}:6334"
+      - "6333:6333"
+      - "6334:6334"
     volumes:
       - ${WORKDIR}/qdrant:/qdrant/storage
     environment:
@@ -66,7 +66,7 @@ services:
     container_name: open-webui
     restart: unless-stopped
     ports:
-      - "${OPEN_WEBUI_PORT:-3030}:8080"
+      - "3030:8080"
     volumes:
       - ${WORKDIR}/open-webui:/app/backend/data
     environment:
@@ -82,20 +82,20 @@ services:
       
       # --- 3. Infinity Embeddings & RAG Engine ---
       - RAG_EMBEDDING_ENGINE=openai
-      - RAG_OPENAI_API_BASE_URL=http://${INFINITY_IP}:9999/v1
+      - RAG_OPENAI_API_BASE_URL=http://${INFINITY_IP}:${INFINITY_PORT}/v1
       - RAG_OPENAI_API_KEY=${INFINITY_API_KEY}
       - RAG_EMBEDDING_MODEL=BAAI/bge-m3
 
       # --- 4. SearXNG Web Search Integration ---
       - ENABLE_RAG_WEB_SEARCH=True
       - RAG_WEB_SEARCH_ENGINE=searxng
-      - SEARXNG_SEARCH_URL=http://${SEARXNG_IP}:8080/search?q=<query>
+      - SEARXNG_SEARCH_URL=http://${SEARXNG_IP}:${SEARXNG_PORT}/search?q=<query>
       - BYPASS_WEB_SEARCH_WEB_LOADER=True
 
       # --- 5. Docling Document Parsing & Vision Extraction ---
       - RAG_FILE_MAX_SIZE=100
       - CONTENT_EXTRACTION_ENGINE=docling
-      - DOCLING_SERVER_URL=http://${DOCLING_IP}:5501
+      - DOCLING_SERVER_URL=http://${DOCLING_IP}:${DOCLING_PORT}
       - DOCLING_PARAMS={"include_images":true,"do_picture_description":true,"picture_description_options":{"engine":"api","url":"http://litellm:4000/v1/chat/completions","api_key":"${LITELLM_MASTER_KEY}","model":"google-gemini-3.1-flash-lite","prompt":"Analyze this image, chart, map, or diagram. Extract the axis labels, numerical trends, visual data structures, and provide a clear description for an academic knowledge base."}}
 
       # TIMEOUT EXTENSIONS

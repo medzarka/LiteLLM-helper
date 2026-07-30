@@ -51,8 +51,9 @@ cp .env.example .env
 Ensure the following key configurations are set:
 
 - **`LITELLM_HELPER_PASSWORD`**: Secures the Helper UI.
+- **`LITELLM_HELPER_PORT`**: The port to expose the helper UI on.
 - **`WORKDIR`**: The base directory on the host for all volume data (defaults to `/home/mgrsys/DATA/var/ai-ui`).
-- **External IPs (`SEARXNG_IP`, `DOCLING_IP`, `INFINITY_IP`)**: If Open-WebUI's external RAG capabilities are utilized, define the IPs/hostnames where these services reside.
+- **External IPs and Ports**: If Open-WebUI's external RAG capabilities are utilized, define the IPs/hostnames and ports where these services reside (`SEARXNG_IP`, `SEARXNG_PORT`, `DOCLING_IP`, `DOCLING_PORT`, `INFINITY_IP`, `INFINITY_PORT`).
 
 ### 3. Launch the Stack
 Run docker-compose to launch the full AI proxy UI stack:

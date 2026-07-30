@@ -22,4 +22,4 @@ if __name__ == '__main__':
     print(f"Starting LiteLLM Helper v3...")
     print(f"Project root: {project_root}")
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5009)

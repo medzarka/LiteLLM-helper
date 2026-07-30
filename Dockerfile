@@ -36,5 +36,5 @@ ENV FLASK_ENV=production
 # Make port available to the container
 EXPOSE ${PORT}
 
-# Run the Flask application
-CMD ["sh", "-c", "flask run --host=0.0.0.0 --port=${PORT:-5001}"]
+# Run the production WSGI application with Gunicorn
+CMD ["sh", "-c", "exec gunicorn --workers 4 --bind 0.0.0.0:${PORT:-5001} 'run:app'"]

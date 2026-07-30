@@ -6,9 +6,14 @@
         <h2><i class="bi bi-diagram-3 me-2 text-primary"></i>Model Fallback Configuration</h2>
         <p class="text-muted mb-0">Configure primary-to-secondary fallback chains for LiteLLM router when models fail or encounter rate limits.</p>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#fallbackModal" onclick="openAddModal()">
-        <i class="bi bi-plus-lg me-1"></i> Add Fallback Rule
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success" onclick="generateSmartFallbacks()">
+            <i class="bi bi-magic me-1"></i> Auto-Generate Smart Fallbacks
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#fallbackModal" onclick="openAddModal()">
+            <i class="bi bi-plus-lg me-1"></i> Add Fallback Rule
+        </button>
+    </div>
 </div>
 
 <!-- Alert banner -->
@@ -284,6 +289,25 @@ function deleteFallback(primaryModel) {
             setTimeout(() => window.location.reload(), 800);
         } else {
             alert(data.error || 'Failed to delete fallback rule.');
+        }
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function generateSmartFallbacks() {
+    if (!confirm('Auto-generate capability-matched, cross-provider fallbacks for all active models?')) return;
+
+    fetch('/api/fallbacks/smart-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`Successfully auto-generated smart fallback chains for <strong>${data.saved_count}</strong> primary models!`);
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            alert(data.error || 'Failed to auto-generate smart fallbacks.');
         }
     })
     .catch(err => alert('Error: ' + err));

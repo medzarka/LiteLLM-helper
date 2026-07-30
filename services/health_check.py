@@ -98,9 +98,10 @@ def test_model(model, api_key, provider_name, api_base=None, timeout=20):
     """
     Send a model-type specific probe to verify endpoint availability.
     Supports Chat, Embedding, Speech-to-Text (STT), Text-to-Speech (TTS), and Rerank models.
+    Returns (status, message, latency_ms) tuple.
     """
     if not _LITELLM_AVAILABLE:
-        return 'skipped', 'litellm not installed - install it for live checks'
+        return 'skipped', 'litellm not installed - install it for live checks', 0.0
 
     actual_model = _litellm_model_name(model['actual_model'], provider_name)
     provider = _litellm_provider_name(provider_name)
@@ -111,6 +112,7 @@ def test_model(model, api_key, provider_name, api_base=None, timeout=20):
         os.environ['GEMINI_API_KEY'] = api_key
         os.environ['GOOGLE_API_KEY'] = api_key
 
+    start_time = time.time()
     try:
         common_kwargs = {
             'model': actual_model,
@@ -125,7 +127,7 @@ def test_model(model, api_key, provider_name, api_base=None, timeout=20):
             if hasattr(litellm, 'embedding'):
                 litellm.embedding(input=['health_check'], **common_kwargs)
             else:
-                return 'skipped', 'litellm.embedding not supported'
+                return 'skipped', 'litellm.embedding not supported', 0.0
 
         elif model_category == 'stt':
             if hasattr(litellm, 'transcription'):
@@ -136,7 +138,7 @@ def test_model(model, api_key, provider_name, api_base=None, timeout=20):
                 audio_file.name = 'test.wav'
                 litellm.transcription(file=audio_file, **common_kwargs)
             else:
-                return 'skipped', 'litellm.transcription not supported'
+                return 'skipped', 'litellm.transcription not supported', 0.0
 
         elif model_category == 'tts':
             if hasattr(litellm, 'speech'):
@@ -150,22 +152,25 @@ def test_model(model, api_key, provider_name, api_base=None, timeout=20):
                     voice = 'Puck'
                 litellm.speech(input='hello', voice=voice, **tts_kwargs)
             else:
-                return 'skipped', 'litellm.speech not supported'
+                return 'skipped', 'litellm.speech not supported', 0.0
 
         elif model_category == 'rerank':
             if hasattr(litellm, 'rerank'):
                 litellm.rerank(query='test', documents=['test'], **common_kwargs)
             else:
-                return 'skipped', 'litellm.rerank not supported'
+                return 'skipped', 'litellm.rerank not supported', 0.0
 
         else:
             # Default: Chat / Completion models
             litellm.completion(messages=[{'role': 'user', 'content': 'test'}], **common_kwargs)
 
-        return 'ok', ''
+        latency_ms = round((time.time() - start_time) * 1000, 1)
+        return 'ok', '', latency_ms
 
     except Exception as e:
-        return _map_exception_to_status(e)
+        latency_ms = round((time.time() - start_time) * 1000, 1)
+        status, message = _map_exception_to_status(e)
+        return status, message, latency_ms
 
 
 import time
@@ -188,12 +193,12 @@ def _check_provider_models(provider_task):
 
         m['provider_name'] = p_name
         if not _LITELLM_AVAILABLE:
-            status, message = 'skipped', 'litellm not installed - install it for live checks'
+            status, message, latency_ms = 'skipped', 'litellm not installed - install it for live checks', 0.0
         elif api_key:
-            status, message = test_model(m, api_key, p_name, api_base=api_base, timeout=timeout)
+            status, message, latency_ms = test_model(m, api_key, p_name, api_base=api_base, timeout=timeout)
         else:
-            status, message = 'skipped', 'No active API key for this provider'
-        provider_results.append((m, status, message))
+            status, message, latency_ms = 'skipped', 'No active API key for this provider', 0.0
+        provider_results.append((m, status, message, latency_ms))
 
     return provider_results
 
@@ -236,14 +241,15 @@ def run_health_check(timeout=20, delay_between_calls=0.5):
                     task = future_to_provider[future]
                     p_name = task[0]['name']
                     for m in task[2]:
-                        results.append((m, 'error', f'Provider thread error ({p_name}): {str(e)[:250]}'))
+                        results.append((m, 'error', f'Provider thread error ({p_name}): {str(e)[:250]}', 0.0))
 
     # Persist results and build response report
     model_obj = DBAIModel(db)
     report = []
-    for m, status, message in results:
-        model_obj.update_health(m['id'], status, message, checked_at)
+    for m, status, message, latency_ms in results:
+        model_obj.update_health(m['id'], status, message, checked_at, latency_ms=latency_ms)
         history = model_obj.get_health_history(m['id'], limit=20)
+        stats = model_obj.get_model_latency_stats(m['id'])
         last_success_at = model_obj.get_last_success_at(m['id'])
         report.append({
             'id': m['id'],
@@ -253,6 +259,8 @@ def run_health_check(timeout=20, delay_between_calls=0.5):
             'status': status,
             'message': message,
             'checked_at': checked_at,
+            'latency_ms': latency_ms,
+            'latency_stats': stats,
             'history': history,
             'last_success_at': last_success_at
         })
@@ -275,6 +283,7 @@ def get_all_models_with_health():
         for m in model_obj.get_by_provider_by_id(p['id']):
             m['provider_name'] = p['name']
             m['history'] = model_obj.get_health_history(m['id'], limit=20)
+            m['latency_stats'] = model_obj.get_model_latency_stats(m['id'])
             m['last_success_at'] = model_obj.get_last_success_at(m['id'])
             rows.append(m)
     db.close()

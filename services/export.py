@@ -124,6 +124,34 @@ def generate_config(
     key_obj = APIKey(db)
     model_obj = AIModel(db)
     
+    try:
+        from .hermes import load_hermes_agents
+    except (ImportError, ValueError):
+        from services.hermes import load_hermes_agents
+        
+    hermes_agents = load_hermes_agents()
+    model_id_to_hermes_tasks = {}
+    hermes_fallbacks = {}
+    
+    for h_task, mapping in hermes_agents.items():
+        if isinstance(mapping, dict):
+            p_id = mapping.get('primary')
+            f_id = mapping.get('fallback')
+        else:
+            p_id = mapping
+            f_id = None
+            
+        if p_id:
+            if p_id not in model_id_to_hermes_tasks:
+                model_id_to_hermes_tasks[p_id] = []
+            model_id_to_hermes_tasks[p_id].append(h_task)
+            
+        if f_id:
+            if f_id not in model_id_to_hermes_tasks:
+                model_id_to_hermes_tasks[f_id] = []
+            model_id_to_hermes_tasks[f_id].append(f"{h_task}-fallback")
+            hermes_fallbacks[h_task] = f"{h_task}-fallback"
+
     config = {
         'model_list': []
     }
@@ -133,15 +161,20 @@ def generate_config(
         config['router_settings'] = _build_router_settings_for_litellm()
         if include_fallbacks:
             fallbacks = load_fallbacks()
+            fb_format = []
             if fallbacks:
-                fb_format = []
                 for fb in fallbacks:
                     p_model = fb.get('primary_model')
                     f_models = fb.get('fallback_models', [])
                     if p_model and f_models:
                         fb_format.append({p_model: f_models})
-                if fb_format:
-                    config['router_settings']['fallbacks'] = fb_format
+                        
+            # Inject Hermes native fallbacks
+            for h_primary, h_fallback in hermes_fallbacks.items():
+                fb_format.append({h_primary: [h_fallback]})
+                
+            if fb_format:
+                config['router_settings']['fallbacks'] = fb_format
 
     if include_general:
         config['general_settings'] = {
@@ -169,6 +202,7 @@ def generate_config(
         'rpm', 'tpm', 'timeout', 'stream_timeout', 'max_retries',
         'model_info', 'organization', 'api_version', 'drop_params'
     }
+
 
     # Get all models with provider info
     providers = provider_obj.get_all()
@@ -246,6 +280,11 @@ def generate_config(
                 #    user can route to the groq-only or openrouter-only variant directly.
                 if include_individual and is_aggregated and include_aggregations:
                     config['model_list'].append(_build_model_entry(model, provider, key, model['name']))
+                    
+                # 3. Emit Hermes virtual aliases
+                if model['id'] in model_id_to_hermes_tasks:
+                    for h_task in model_id_to_hermes_tasks[model['id']]:
+                        config['model_list'].append(_build_model_entry(model, provider, key, h_task))
 
     db.close()
     return config
@@ -257,3 +296,60 @@ def validate_config_non_empty(config):
         raise ValueError(
             'Generated config has no model deployments. Add at least one active key to a model before exporting.'
         )
+
+def sync_to_shared_volume(config_dict, format_type='yaml'):
+    """
+    Writes the config file to the shared Docker volume so that the running LiteLLM
+    container can hot-reload it. Then performs a health check on LiteLLM.
+    """
+    # 1. Determine shared volume path
+    # When running inside docker-compose, we mapped ./shared-config to /app/shared
+    docker_shared_path = '/app/shared'
+    local_shared_path = os.path.join(BASE_DIR, '..', 'shared-config')
+    
+    if os.path.exists(docker_shared_path) and os.path.isdir(docker_shared_path):
+        target_dir = docker_shared_path
+    else:
+        # Fallback to local path for dev testing
+        target_dir = local_shared_path
+        os.makedirs(target_dir, exist_ok=True)
+        
+    filename = f'litellm-config.{format_type}'
+    filepath = os.path.join(target_dir, 'config.yaml') # The docker-compose expects config.yaml regardless of the export format type
+    
+    # 2. Write the file
+    try:
+        with open(filepath, 'w') as f:
+            if format_type == 'yaml':
+                yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+            else:
+                json.dump(config_dict, f, indent=2)
+    except Exception as e:
+        return {'success': False, 'error': f'Failed to write to shared volume: {str(e)}'}
+        
+    # 3. Ping LiteLLM container to ensure it's alive and processing
+    import urllib.request
+    import time
+    
+    time.sleep(1) # Give LiteLLM a moment to detect the file change via --watch
+    
+    # In docker-compose, the container is named `litellm` and exposes port 4000
+    # Use litellm:4000 or fallback to localhost:4000
+    urls_to_test = ['http://litellm:4000/health', 'http://127.0.0.1:4000/health']
+    health_status = 'Unverified'
+    
+    for url in urls_to_test:
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    health_status = 'Healthy'
+                    break
+        except Exception:
+            pass
+            
+    return {
+        'success': True, 
+        'path': filepath,
+        'litellm_health': health_status
+    }

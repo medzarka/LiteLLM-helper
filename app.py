@@ -469,9 +469,136 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
+    @app.route('/api/fallbacks/smart-generate', methods=['POST'])
+    def smart_generate_fallbacks_api():
+        try:
+            try:
+                from .services.smart_fallbacks import apply_smart_fallbacks
+            except (ImportError, ValueError):
+                from services.smart_fallbacks import apply_smart_fallbacks
+            
+            saved_count = apply_smart_fallbacks()
+            return jsonify({'success': True, 'saved_count': saved_count})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/models/<int:model_id>/autofill', methods=['POST'])
+    def autofill_model_metadata_api(model_id):
+        try:
+            try:
+                from .services.metadata_extractor import autofill_model_specs_in_db
+            except (ImportError, ValueError):
+                from services.metadata_extractor import autofill_model_specs_in_db
+
+            autofill_model_specs_in_db(model_id)
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/models/autofill-all', methods=['POST'])
+    def autofill_all_models_api():
+        try:
+            try:
+                from .models.models import Database, AIModel
+                from .services.metadata_extractor import autofill_model_specs_in_db
+            except (ImportError, ValueError):
+                from models.models import Database, AIModel
+                from services.metadata_extractor import autofill_model_specs_in_db
+
+            db = Database()
+            cursor = db.conn.cursor()
+            cursor.execute('SELECT id FROM model')
+            rows = cursor.fetchall()
+            db.close()
+
+            updated = 0
+            for r in rows:
+                autofill_model_specs_in_db(r[0])
+                updated += 1
+
+            return jsonify({'success': True, 'updated_count': updated})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/providers/sync-free-models', methods=['POST'])
+    def sync_free_models_api():
+        try:
+            try:
+                from .services.provider_sync import sync_openrouter_free_models
+            except (ImportError, ValueError):
+                from services.provider_sync import sync_openrouter_free_models
+
+            result = sync_openrouter_free_models()
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/providers/free-catalog', methods=['GET'])
+    def get_free_catalog_api():
+        try:
+            try:
+                from .services.provider_sync import get_free_tier_catalog
+            except (ImportError, ValueError):
+                from services.provider_sync import get_free_tier_catalog
+
+            catalog = get_free_tier_catalog()
+            return jsonify(catalog)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/hermes-agents', methods=['GET', 'POST'])
+    def hermes_agents():
+        try:
+            from .services.hermes import load_hermes_agents, save_hermes_agents
+        except (ImportError, ValueError):
+            from services.hermes import load_hermes_agents, save_hermes_agents
+            
+        try:
+            from .models.models import Database, AIModel
+        except (ImportError, ValueError):
+            from models.models import Database, AIModel
+            
+        if request.method == 'POST':
+            new_mappings = {}
+            for key, value in request.form.items():
+                if value and (key.startswith('primary_hermes-') or key.startswith('fallback_hermes-')):
+                    prefix, task_id = key.split('_', 1)
+                    val = int(value) if value.isdigit() else value
+                    if task_id not in new_mappings:
+                        new_mappings[task_id] = {}
+                    new_mappings[task_id][prefix] = val
+            save_hermes_agents(new_mappings)
+            return redirect(url_for('hermes_agents'))
+            
+        current_agents = load_hermes_agents()
+        # Convert legacy flat format to dict format for the template
+        for k, v in current_agents.items():
+            if not isinstance(v, dict):
+                current_agents[k] = {'primary': v}
+        db = Database()
+        try:
+            from .models.models import Provider as DBProvider
+        except (ImportError, ValueError):
+            from models.models import Provider as DBProvider
+            
+        provider_obj = DBProvider(db)
+        model_obj = AIModel(db)
+        
+        models = []
+        for provider in provider_obj.get_all():
+            models.extend(model_obj.get_by_provider(provider['name']))
+            
+        db.close()
+        return render_template('hermes_agents.html', models=models, current_agents=current_agents, active='hermes')
+
     @app.route('/export-config')
     def export_config():
-        return render_template('export_config.html', active='export')
+        try:
+            from .services.versions import list_versions
+        except (ImportError, ValueError):
+            from services.versions import list_versions
+        versions = list_versions()
+        return render_template('export_config.html', versions=versions, active='export')
     
     @app.route('/export/preview')
     def export_preview():
@@ -557,40 +684,81 @@ def create_app():
             download_name=filename
         )
     
-    @app.route('/versions')
-    def versions_page():
-        from .services.versions import list_versions
-        return render_template('versions.html', versions=list_versions(), active='versions')
-
+    @app.route('/export/sync-live', methods=['POST'])
+    def export_sync_live():
+        try:
+            from .services.export import generate_config, sync_to_shared_volume
+        except (ImportError, ValueError):
+            from services.export import generate_config, sync_to_shared_volume
+        
+        format_type = request.args.get('format', 'yaml')
+        include_router = request.args.get('include_router') != 'false'
+        include_general = request.args.get('include_general') != 'false'
+        include_litellm = request.args.get('include_litellm') != 'false'
+        include_individual = request.args.get('include_individual') in ('true', 'on', '1', 'yes')
+        include_health_checks = request.args.get('include_health_checks') != 'false'
+        include_fallbacks = request.args.get('include_fallbacks') != 'false'
+        include_aggregations = request.args.get('include_aggregations') != 'false'
+        exclude_unhealthy = request.args.get('exclude_unhealthy') in ('true', 'on', '1', 'yes')
+        
+        try:
+            config = generate_config(
+                include_router=include_router,
+                include_general=include_general,
+                include_litellm=include_litellm,
+                include_individual=include_individual,
+                include_health_checks=include_health_checks,
+                include_fallbacks=include_fallbacks,
+                include_aggregations=include_aggregations,
+                exclude_unhealthy=exclude_unhealthy
+            )
+            
+            result = sync_to_shared_volume(config, format_type)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
     @app.route('/versions', methods=['POST'])
     def create_version():
-        from .services.versions import save_version
+        try:
+            from .services.versions import save_version
+        except (ImportError, ValueError):
+            from services.versions import save_version
         name = (request.form.get('name') or '').strip()
         description = (request.form.get('description') or '').strip()
         if not name:
-            return redirect(url_for('versions_page'))
+            return redirect(url_for('export_config'))
         save_version(name, description)
-        return redirect(url_for('versions_page'))
+        return redirect(url_for('export_config'))
 
     @app.route('/versions/<path:file>/restore', methods=['POST'])
     def restore_version(file):
-        from .services.versions import load_version, apply_state
+        try:
+            from .services.versions import load_version, apply_state
+        except (ImportError, ValueError):
+            from services.versions import load_version, apply_state
         state = load_version(file)
         if state:
             apply_state(state)
-        return redirect(url_for('versions_page'))
+        return redirect(url_for('export_config'))
 
     @app.route('/versions/<path:file>/delete', methods=['POST'])
     def delete_version_route(file):
-        from .services.versions import delete_version
+        try:
+            from .services.versions import delete_version
+        except (ImportError, ValueError):
+            from services.versions import delete_version
         delete_version(file)
-        return redirect(url_for('versions_page'))
+        return redirect(url_for('export_config'))
     
     @app.route('/update-model-timeouts', methods=['POST'])
     @require_login
     def update_model_timeouts():
         """Update timeout and stream_timeout for all models"""
-        from .models.models import Database, AIModel
+        try:
+            from .models.models import Database, AIModel
+        except (ImportError, ValueError):
+            from models.models import Database, AIModel
         try:
             db = Database()
             model_obj = AIModel(db)
@@ -614,12 +782,18 @@ def create_app():
 
 # Helper functions for templates
 def keys_by_provider(provider_id):
-    from .models.models import Database, APIKey
+    try:
+        from .models.models import Database, APIKey
+    except (ImportError, ValueError):
+        from models.models import Database, APIKey
     db = Database()
     return APIKey(db).get_by_provider(provider_id)
 
 def models_by_provider(provider_id):
-    from .models.models import Database, AIModel
+    try:
+        from .models.models import Database, AIModel
+    except (ImportError, ValueError):
+        from models.models import Database, AIModel
     db = Database()
     return AIModel(db).get_by_provider_by_id(provider_id)
 
@@ -721,7 +895,10 @@ def save_rotation_settings(settings):
         pass
 
 def compute_aggregations(only_aggregated=False):
-    from .models.models import Database, AIModel as DBAIModel, APIKey as DBAPIKey, Provider as DBProvider
+    try:
+        from .models.models import Database, AIModel as DBAIModel, APIKey as DBAPIKey, Provider as DBProvider
+    except (ImportError, ValueError):
+        from models.models import Database, AIModel as DBAIModel, APIKey as DBAPIKey, Provider as DBProvider
     db = Database()
 
     # Apply user-defined aggregation overrides (rename / merge models under a shared name)

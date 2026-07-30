@@ -1,0 +1,6 @@
+{
+  "hermes-vision": {
+    "primary": 3,
+    "fallback": 4
+  }
+}

@@ -106,6 +106,7 @@ class Database:
             model_id INTEGER NOT NULL,
             status TEXT NOT NULL,
             message TEXT,
+            latency_ms REAL DEFAULT 0,
             checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (model_id) REFERENCES model (id) ON DELETE CASCADE
         )
@@ -125,6 +126,15 @@ class Database:
                     cursor.execute(f'ALTER TABLE model ADD COLUMN {col} {ctype}')
                 except Exception:
                     pass
+
+        cursor.execute('PRAGMA table_info(model_health_history)')
+        h_existing = {row[1] for row in cursor.fetchall()}
+        if 'latency_ms' not in h_existing:
+            try:
+                cursor.execute('ALTER TABLE model_health_history ADD COLUMN latency_ms REAL DEFAULT 0')
+            except Exception:
+                pass
+
         self.conn.commit()
 
     def initialize_rotation_settings(self):
@@ -496,7 +506,7 @@ class AIModel:
         self.db.conn.commit()
         return cursor.rowcount
 
-    def update_health(self, model_id, status, message, checked_at):
+    def update_health(self, model_id, status, message, checked_at, latency_ms=0):
         """Record the outcome of a live availability check for a model in history and update current status."""
         cursor = self.db.conn.cursor()
         cursor.execute(
@@ -504,8 +514,8 @@ class AIModel:
             (status, message, checked_at, model_id)
         )
         cursor.execute(
-            'INSERT INTO model_health_history (model_id, status, message, checked_at) VALUES (?, ?, ?, ?)',
-            (model_id, status, message, checked_at)
+            'INSERT INTO model_health_history (model_id, status, message, checked_at, latency_ms) VALUES (?, ?, ?, ?, ?)',
+            (model_id, status, message, checked_at, float(latency_ms or 0))
         )
         self.db.conn.commit()
         return cursor.rowcount > 0
@@ -514,9 +524,9 @@ class AIModel:
         """Retrieve the latest `limit` health checks for a model, ordered chronologically (oldest to newest)."""
         cursor = self.db.conn.cursor()
         cursor.execute(
-            '''SELECT status, message, checked_at
+            '''SELECT status, message, checked_at, latency_ms
                FROM (
-                   SELECT status, message, checked_at, id
+                   SELECT status, message, checked_at, latency_ms, id
                    FROM model_health_history
                    WHERE model_id = ?
                    ORDER BY id DESC
@@ -525,7 +535,34 @@ class AIModel:
             (model_id, limit)
         )
         rows = cursor.fetchall()
-        return [{'status': r[0], 'message': r[1], 'checked_at': r[2]} for r in rows]
+        return [
+            {
+                'status': r[0],
+                'message': r[1],
+                'checked_at': r[2],
+                'latency_ms': round(r[3], 1) if len(r) > 3 and r[3] is not None else 0
+            } for r in rows
+        ]
+
+    def get_model_latency_stats(self, model_id):
+        """Calculate latency and availability stats for a model."""
+        cursor = self.db.conn.cursor()
+        cursor.execute(
+            '''SELECT AVG(latency_ms), MIN(latency_ms), MAX(latency_ms),
+                      SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+               FROM model_health_history
+               WHERE model_id = ? AND latency_ms > 0''',
+            (model_id,)
+        )
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return {
+                'avg_latency': round(row[0], 1),
+                'min_latency': round(row[1], 1),
+                'max_latency': round(row[2], 1),
+                'uptime_percent': round(row[3], 1) if row[3] is not None else 100.0
+            }
+        return {'avg_latency': 0, 'min_latency': 0, 'max_latency': 0, 'uptime_percent': 100.0}
 
     def get_last_success_at(self, model_id):
         """Retrieve the timestamp of the last successful health check ('ok') for a model."""

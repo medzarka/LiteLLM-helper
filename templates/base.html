@@ -44,90 +44,117 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .sidebar {
-            height: calc(100vh - 65px);
-            position: fixed;
-            top: 65px;
-            left: 0;
-            width: 250px;
-            padding-top: 15px;
-            overflow-y: auto;
-            border-right: 1px solid var(--bs-border-color);
-        }
-        [data-bs-theme="light"] .sidebar {
-            background-color: #ffffff;
-        }
-        [data-bs-theme="dark"] .sidebar {
-            background-color: #1e293b;
-        }
-        .sidebar .nav-link {
+        
+        .navbar-nav .nav-link {
             font-weight: 500;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 6px;
-            margin: 2px 12px;
+            margin: 2px 4px;
             transition: all 0.2s ease;
+            color: #cbd5e1 !important;
         }
-        [data-bs-theme="light"] .sidebar .nav-link {
-            color: #64748b;
+        .navbar-nav .nav-link:hover {
+            color: #f8fafc !important;
+            background-color: rgba(255,255,255,0.1);
         }
-        [data-bs-theme="light"] .sidebar .nav-link:hover {
-            color: #0f172a;
-            background-color: #f1f5f9;
-        }
-        [data-bs-theme="light"] .sidebar .nav-link.active {
-            color: #2563eb;
-            background-color: #eff6ff;
+        .navbar-nav .nav-link.active {
+            color: #38bdf8 !important;
+            background-color: rgba(56, 189, 248, 0.15);
             font-weight: 600;
-            border-left: 3px solid #2563eb;
         }
-        [data-bs-theme="dark"] .sidebar .nav-link {
-            color: #94a3b8;
-        }
-        [data-bs-theme="dark"] .sidebar .nav-link:hover {
-            color: #f8fafc;
-            background-color: #334155;
-        }
-        [data-bs-theme="dark"] .sidebar .nav-link.active {
-            color: #38bdf8;
-            background-color: #1e3a8a;
-            font-weight: 600;
-            border-left: 3px solid #38bdf8;
-        }
+
         .content {
-            margin-left: 250px;
-            padding: 30px;
+            padding: 30px 15px;
             min-height: calc(100vh - 65px);
+            max-width: 1600px;
+            margin: 0 auto;
         }
         .card {
-            border-radius: 10px;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.05);
         }
+        [data-bs-theme="dark"] .card {
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+        .table-hover tbody tr {
+            transition: background-color 0.15s ease;
+        }
+        
         @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-                top: 0;
-                border-right: none;
-                border-bottom: 1px solid var(--bs-border-color);
-            }
             .content {
-                margin-left: 0;
                 padding: 15px;
             }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
+    <nav class="navbar navbar-expand-xl navbar-dark bg-dark fixed-top">
+        <div class="container-fluid px-3">
             <a class="navbar-brand" href="{{ url_for('index') }}"><i class="bi bi-layers-fill me-2"></i>LiteLLM Helper</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-xl-0 ms-4">
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'providers' %}active{% endif %}" href="{{ url_for('providers') }}">
+                            <i class="bi bi-hdd-network me-1"></i> Providers
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'keys' %}active{% endif %}" href="{{ url_for('keys') }}">
+                            <i class="bi bi-key me-1"></i> API Keys
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'models' %}active{% endif %}" href="{{ url_for('models') }}">
+                            <i class="bi bi-cpu me-1"></i> Models
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'aggregated_models' %}active{% endif %}" href="{{ url_for('aggregated_models') }}">
+                            <i class="bi bi-shuffle me-1"></i> Aggregated
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'key_rotation' %}active{% endif %}" href="{{ url_for('key_rotation') }}">
+                            <i class="bi bi-arrow-repeat me-1"></i> Rotation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'fallbacks' %}active{% endif %}" href="{{ url_for('fallbacks_page') }}">
+                            <i class="bi bi-diagram-3 me-1"></i> Fallbacks
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'export' %}active{% endif %}" href="{{ url_for('export_config') }}">
+                            <i class="bi bi-download me-1"></i> Export Config
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'model_health' %}active{% endif %}" href="{{ url_for('model_health') }}">
+                            <i class="bi bi-heart-pulse me-1"></i> Health
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'hermes' %}active{% endif %}" href="{{ url_for('hermes_agents') }}">
+                            <i class="bi bi-robot me-1"></i> Hermes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active == 'documentation' %}active{% endif %}" href="{{ url_for('documentation') }}">
+                            <i class="bi bi-book me-1"></i> Docs
+                        </a>
+                    </li>
+                </ul>
+                
                 <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item me-2">
+                    <li class="nav-item me-3 mb-2 mb-xl-0">
                         <!-- Theme Dropdown Switcher -->
                         <div class="dropdown">
                             <button class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center gap-1" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -153,59 +180,9 @@
                             </ul>
                         </div>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('providers') }}">
-                            <i class="bi bi-hdd-network me-1"></i> Providers
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('keys') }}">
-                            <i class="bi bi-key me-1"></i> API Keys
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('models') }}">
-                            <i class="bi bi-cpu me-1"></i> Models
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('aggregated_models') }}">
-                            <i class="bi bi-shuffle me-1"></i> Aggregated Models
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('key_rotation') }}">
-                            <i class="bi bi-arrow-repeat me-1"></i> Key Rotation
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('fallbacks_page') }}">
-                            <i class="bi bi-diagram-3 me-1"></i> Fallbacks
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('export_config') }}">
-                            <i class="bi bi-download me-1"></i> Export Config
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('model_health') }}">
-                            <i class="bi bi-heart-pulse me-1"></i> Model Health
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('versions_page') }}">
-                            <i class="bi bi-clock-history me-1"></i> Versions
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documentation') }}">
-                            <i class="bi bi-book me-1"></i> Documentation
-                        </a>
-                    </li>
                     {% if session.get('authenticated') %}
-                    <li class="nav-item ms-lg-2">
-                        <a class="btn btn-outline-danger btn-sm" href="{{ url_for('logout') }}">
+                    <li class="nav-item">
+                        <a class="btn btn-danger btn-sm rounded-pill px-3 shadow-sm" href="{{ url_for('logout') }}">
                             <i class="bi bi-box-arrow-right me-1"></i> Logout
                         </a>
                     </li>
@@ -217,64 +194,7 @@
 
     <div class="container-fluid">
         <div class="row">
-            <nav class="col-md-2 d-none d-md-block sidebar">
-                <div class="position-sticky pt-3">
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'providers' %}active{% endif %}" href="{{ url_for('providers') }}">
-                                <i class="bi bi-hdd-network me-2"></i> Providers
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'keys' %}active{% endif %}" href="{{ url_for('keys') }}">
-                                <i class="bi bi-key me-2"></i> API Keys
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'models' %}active{% endif %}" href="{{ url_for('models') }}">
-                                <i class="bi bi-cpu me-2"></i> Models
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'aggregated_models' %}active{% endif %}" href="{{ url_for('aggregated_models') }}">
-                                <i class="bi bi-shuffle me-2"></i> Aggregated Models
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'key_rotation' %}active{% endif %}" href="{{ url_for('key_rotation') }}">
-                                <i class="bi bi-arrow-repeat me-2"></i> Key Rotation
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'fallbacks' %}active{% endif %}" href="{{ url_for('fallbacks_page') }}">
-                                <i class="bi bi-diagram-3 me-2"></i> Fallbacks
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'export' %}active{% endif %}" href="{{ url_for('export_config') }}">
-                                <i class="bi bi-download me-2"></i> Export Config
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'model_health' %}active{% endif %}" href="{{ url_for('model_health') }}">
-                                <i class="bi bi-heart-pulse me-2"></i> Model Health
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'versions' %}active{% endif %}" href="{{ url_for('versions_page') }}">
-                                <i class="bi bi-clock-history me-2"></i> Versions
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if active == 'documentation' %}active{% endif %}" href="{{ url_for('documentation') }}">
-                                <i class="bi bi-book me-2"></i> Documentation
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </nav>
-
-            <main class="col-md-10 ms-sm-auto content">
+            <main class="col-12 content">
                 {% block content %}{% endblock %}
             </main>
         </div>

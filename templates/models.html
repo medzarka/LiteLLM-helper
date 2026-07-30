@@ -2,10 +2,17 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
     <h1 class="h2 mb-0">Models</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="{{ url_for('providers') }}" class="btn btn-sm btn-outline-secondary me-2">
+    <div class="btn-toolbar mb-2 mb-md-0 gap-2">
+        <a href="{{ url_for('providers') }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back to Providers
         </a>
+        <button class="btn btn-sm btn-outline-info" onclick="autofillAllModels()"
+            title="Auto-fill context window, mode, and skills for all models">
+            <i class="bi bi-magic me-1"></i> Auto-Fill All Specs
+        </button>
+        <button class="btn btn-sm btn-outline-success" onclick="syncFreeModels()">
+            <i class="bi bi-cloud-download me-1"></i> Sync Free Tier Models
+        </button>
         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal">
             <i class="bi bi-plus-circle"></i> Add Model
         </button>
@@ -22,8 +29,10 @@
                 <label for="model-search-input" class="form-label fw-bold">Search Models</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" id="model-search-input" placeholder="Search name, actual model, provider, or capability...">
-                    <button class="btn btn-outline-secondary" type="button" id="clear-model-search" style="display: none;">
+                    <input type="text" class="form-control" id="model-search-input"
+                        placeholder="Search name, actual model, provider, or capability...">
+                    <button class="btn btn-outline-secondary" type="button" id="clear-model-search"
+                        style="display: none;">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
@@ -52,11 +61,16 @@
         <!-- Interactive Skill Chips Filter -->
         <div class="mb-3">
             <label class="form-label fw-bold d-block">Filter by Capabilities / Skills</label>
-            <div class="d-flex flex-wrap gap-2 p-2 border rounded bg-light" id="skills-chips-container" style="max-height: 120px; overflow-y: auto;">
+            <div class="d-flex flex-wrap gap-2 p-2 border rounded bg-light" id="skills-chips-container"
+                style="max-height: 120px; overflow-y: auto;">
                 {% if all_skills %}
                 {% for skill in all_skills %}
-                <button type="button" class="btn btn-sm btn-outline-info skill-chip-btn {% if current_skills and skill in current_skills %}active{% endif %}" data-skill="{{ skill }}">
-                    <i class="bi {% if current_skills and skill in current_skills %}bi-check-circle-fill{% else %}bi-tag{% endif %} me-1"></i>{{ skill }}
+                <button type="button"
+                    class="btn btn-sm btn-outline-info rounded-pill skill-chip-btn {% if current_skills and skill in current_skills %}active{% endif %}"
+                    data-skill="{{ skill }}">
+                    <i
+                        class="bi {% if current_skills and skill in current_skills %}bi-check-circle-fill{% else %}bi-tag{% endif %} me-1"></i>{{
+                    skill }}
                 </button>
                 {% endfor %}
                 {% else %}
@@ -80,7 +94,8 @@
     <ul class="nav nav-pills" id="modelCategoryTabs">
         <li class="nav-item">
             <button class="nav-link active category-tab" data-category="all" type="button">
-                <i class="bi bi-grid-fill me-1"></i>All Models <span class="badge bg-secondary ms-1" id="count-all">0</span>
+                <i class="bi bi-grid-fill me-1"></i>All Models <span class="badge bg-secondary ms-1"
+                    id="count-all">0</span>
             </button>
         </li>
         <li class="nav-item">
@@ -90,22 +105,26 @@
         </li>
         <li class="nav-item">
             <button class="nav-link category-tab" data-category="embedding" type="button">
-                <i class="bi bi-layers me-1"></i>Embedding <span class="badge bg-secondary ms-1" id="count-embedding">0</span>
+                <i class="bi bi-layers me-1"></i>Embedding <span class="badge bg-secondary ms-1"
+                    id="count-embedding">0</span>
             </button>
         </li>
         <li class="nav-item">
             <button class="nav-link category-tab" data-category="stt" type="button">
-                <i class="bi bi-mic me-1"></i>Speech-to-Text <span class="badge bg-secondary ms-1" id="count-stt">0</span>
+                <i class="bi bi-mic me-1"></i>Speech-to-Text <span class="badge bg-secondary ms-1"
+                    id="count-stt">0</span>
             </button>
         </li>
         <li class="nav-item">
             <button class="nav-link category-tab" data-category="tts" type="button">
-                <i class="bi bi-volume-up me-1"></i>Text-to-Speech <span class="badge bg-secondary ms-1" id="count-tts">0</span>
+                <i class="bi bi-volume-up me-1"></i>Text-to-Speech <span class="badge bg-secondary ms-1"
+                    id="count-tts">0</span>
             </button>
         </li>
         <li class="nav-item">
             <button class="nav-link category-tab" data-category="rerank" type="button">
-                <i class="bi bi-sort-numeric-down me-1"></i>Rerank <span class="badge bg-secondary ms-1" id="count-rerank">0</span>
+                <i class="bi bi-sort-numeric-down me-1"></i>Rerank <span class="badge bg-secondary ms-1"
+                    id="count-rerank">0</span>
             </button>
         </li>
     </ul>
@@ -116,9 +135,8 @@
     <table class="table table-striped table-hover">
         <thead class="table-dark">
             <tr>
-                <th>Model Name</th>
+                <th>Model Name & ID</th>
                 <th>Provider</th>
-                <th>Actual Model</th>
                 <th>Type</th>
                 <th>Size (B)</th>
                 <th>Context Window</th>
@@ -130,9 +148,11 @@
         <tbody id="models-list">
             {% for model in models %}
             <tr data-model-id="{{ model.id }}">
-                <td><strong>{{ model.name }}</strong></td>
+                <td>
+                    <strong>{{ model.name }}</strong><br>
+                    <code class="text-muted small">{{ model.actual_model }}</code>
+                </td>
                 <td><span class="badge bg-secondary">{{ model.provider_name }}</span></td>
-                <td><code>{{ model.actual_model }}</code></td>
                 <td><span class="badge bg-info">{{ model.model_type or '-' }}</span></td>
                 <td>
                     {% if model.model_size_b is not none %}
@@ -239,7 +259,8 @@
                         <label for="modelProvider" class="form-label">Provider *</label>
                         <select class="form-select" id="modelProvider" name="provider_name" required>
                             {% for provider in providers %}
-                            <option value="{{ provider.name }}" {% if current_provider == provider.name %}selected{% endif %}>{{ provider.name }}</option>
+                            <option value="{{ provider.name }}" {% if current_provider==provider.name %}selected{% endif
+                                %}>{{ provider.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -262,7 +283,8 @@
                             <option value="tts">Text-to-Speech / Audio Generation (tts)</option>
                             <option value="rerank">Rerank / Search (rerank)</option>
                         </select>
-                        <div class="form-text">Categorizes the model capability for routing, health checks, and LiteLLM export.</div>
+                        <div class="form-text">Categorizes the model capability for routing, health checks, and LiteLLM
+                            export.</div>
                     </div>
                     <div class="mb-3">
                         <label for="modelRpm" class="form-label">RPM Limit *</label>
@@ -447,6 +469,17 @@
     const modelMap = {};
     models.forEach(m => { modelMap[m.id] = m; });
 
+    function escapeHtml(unsafe) {
+        if (unsafe === null || unsafe === undefined) return '';
+        return unsafe
+             .toString()
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
     // Format model size in B (billions of parameters)
     function formatModelSize(size) {
         if (size === null || size === undefined || size === '') return '-';
@@ -622,43 +655,45 @@
                 `;
                 tableBody.appendChild(emptyTr);
             } else {
-                filteredModels.forEach(model => {
-                    const row = document.createElement('tr');
-                    row.setAttribute('data-model-id', model.id);
-                    row.innerHTML = `
-                    <td><strong>${model.name}</strong></td>
-                    <td><span class="badge bg-secondary">${model.provider_name}</span></td>
-                    <td><code>${model.actual_model}</code></td>
-                    <td>${formatTypeBadge(model.model_type)}</td>
-                    <td>${model.model_size_b ? `<span class="badge bg-light text-dark" title="${model.model_size_b} bytes">${formatModelSize(model.model_size_b)}</span>` : '<span class="text-muted">-</span>'}</td>
+                filteredModels.forEach(m => {
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-model-id', m.id);
+                    tr.innerHTML = `
+            <td>
+                <strong>${escapeHtml(m.name)}</strong><br>
+                <code class="text-muted small">${escapeHtml(m.actual_model || '')}</code>
+            </td>
+            <td><span class="badge bg-secondary">${escapeHtml(m.provider_name)}</span></td>
+            <td>${formatTypeBadge(m.model_type)}</td>
+                    <td>${m.model_size_b ? `<span class="badge bg-light text-dark" title="${m.model_size_b} bytes">${formatModelSize(m.model_size_b)}</span>` : '<span class="text-muted">-</span>'}</td>
                     <td>
-                        ${model.max_input_tokens ? `<span class="badge bg-primary text-wrap">${formatContextWindow(model.max_input_tokens)}</span>` : '<span class="text-muted small">Default</span>'}
+                        ${m.max_input_tokens ? `<span class="badge bg-primary text-wrap">${formatContextWindow(m.max_input_tokens)}</span>` : '<span class="text-muted small">Default</span>'}
                     </td>
                     <td>
                         <small>
-                            RPM: ${model.rpm_limit}<br>
-                            TPM: ${model.tpm_limit}<br>
-                            RPD: ${model.rpd_limit > 0 ? model.rpd_limit : '∞'}<br>
-                            TPD: ${model.tpd_limit > 0 ? model.tpd_limit : '∞'}
+                            RPM: ${m.rpm_limit}<br>
+                            TPM: ${m.tpm_limit}<br>
+                            RPD: ${m.rpd_limit > 0 ? m.rpd_limit : '∞'}<br>
+                            TPD: ${m.tpd_limit > 0 ? m.tpd_limit : '∞'}
                         </small>
                     </td>
                     <td>
-                        ${model.supports_function_calling ? '<span class="badge bg-success me-1">FC</span>' : '<span class="badge bg-secondary me-1">NoFC</span>'}
-                        ${model.skills && model.skills.length > 0 ? '<div class="mt-1">' + model.skills.map(skill => `<span class="badge bg-info me-1">${skill}</span>`).join('') + '</div>' : ''}
+                        ${m.supports_function_calling ? '<span class="badge bg-success me-1">FC</span>' : '<span class="badge bg-secondary me-1">NoFC</span>'}
+                        ${m.skills && m.skills.length > 0 ? '<div class="mt-1">' + m.skills.map(skill => `<span class="badge bg-info me-1">${skill}</span>`).join('') + '</div>' : ''}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary view-model" data-bs-toggle="modal" data-bs-target="#viewModelModal" data-model-id="${model.id}">
+                        <button class="btn btn-sm btn-outline-primary view-model" data-bs-toggle="modal" data-bs-target="#viewModelModal" data-model-id="${m.id}">
                             <i class="bi bi-eye"></i> View
                         </button>
-                        <button class="btn btn-sm btn-outline-primary edit-model" data-bs-toggle="modal" data-bs-target="#editModelModal" data-model-id="${model.id}">
+                        <button class="btn btn-sm btn-outline-primary edit-model" data-bs-toggle="modal" data-bs-target="#editModelModal" data-model-id="${m.id}">
                             <i class="bi bi-pencil"></i> Edit
                         </button>
-                        <button class="btn btn-sm btn-outline-danger delete-model" data-model-id="${model.id}">
+                        <button class="btn btn-sm btn-outline-danger delete-model" data-model-id="${m.id}">
                             <i class="bi bi-trash"></i> Delete
                         </button>
                     </td>
                 `;
-                    tableBody.appendChild(row);
+                    tableBody.appendChild(tr);
                 });
                 attachRowEventListeners();
             }
@@ -1008,5 +1043,59 @@
             return num.toLocaleString() + ' tokens';
         }
     });
+
+    function autofillModel(modelId) {
+        fetch(`/api/models/${modelId}/autofill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Auto-fill failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error: ' + err.message));
+    }
+
+    function autofillAllModels() {
+        if (!confirm('Auto-fill context window, function calling capabilities, and skill tags for all models in database?')) return;
+
+        fetch('/api/models/autofill-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully auto-extracted metadata specs for ${data.updated_count} models!`);
+                    window.location.reload();
+                } else {
+                    alert('Auto-fill failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error: ' + err.message));
+    }
+
+    function syncFreeModels() {
+        if (!confirm('Fetch latest free tier models live from OpenRouter and provider API catalogs?')) return;
+
+        fetch('/api/providers/sync-free-models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Provider Model Sync Complete!\n- Newly Discovered Free Models: ${data.added_count}\n- Updated Context Window Specs: ${data.updated_count}`);
+                    window.location.reload();
+                } else {
+                    alert('Sync failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Network error: ' + err.message));
+    }
 </script>
 {% endblock %}

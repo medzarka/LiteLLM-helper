@@ -34,9 +34,19 @@ def create_model_from_provider(provider_name):
             model_size_b=data.get('model_size_b'),
             max_input_tokens=data.get('max_input_tokens')
         )
+        # Automatically extract and populate model specs & skills
+        try:
+            try:
+                from .metadata_extractor import autofill_model_specs_in_db
+            except (ImportError, ValueError):
+                from metadata_extractor import autofill_model_specs_in_db
+            autofill_model_specs_in_db(model_id)
+        except Exception:
+            pass
+
         return jsonify({
             'id': model_id,
-            'message': 'Model created successfully'
+            'message': 'Model created and specs auto-extracted successfully'
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400

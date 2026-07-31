@@ -36,15 +36,17 @@ def _normalize_model_name(actual_model, provider_name):
     if not model_name:
         return model_name
 
+    normalized_provider = _normalize_provider_for_litellm(provider_name)
     provider = (provider_name or '').strip().lower()
+
     # Older records may have provider prefixes like "Groq/..." or "google/...".
-    for prefix in (provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/'):
+    for prefix in (provider + '/', normalized_provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/'):
         if prefix != '/' and model_name.lower().startswith(prefix):
             model_name = model_name[len(prefix):]
             break
 
-    if provider in ('google', 'googleai', 'googleai_studio', 'gemini'):
-        return f'gemini/{model_name}'
+    if normalized_provider:
+        return f'{normalized_provider}/{model_name}'
 
     return model_name
 

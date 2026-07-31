@@ -10,15 +10,20 @@ def _litellm_provider_name(provider_name):
 
 def _litellm_model_name(actual_model, provider_name):
     model_name = (actual_model or '').strip()
+    if not model_name:
+        return model_name
+
+    normalized_provider = _litellm_provider_name(provider_name)
     provider = (provider_name or '').strip().lower()
 
-    # Original logic for other providers
-    for prefix in (provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/'):
+    for prefix in (provider + '/', normalized_provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/'):
         if prefix != '/' and model_name.lower().startswith(prefix):
             model_name = model_name[len(prefix):]
             break
-    if _litellm_provider_name(provider_name) == 'gemini':
-        return f'gemini/{model_name}'
+
+    if normalized_provider:
+        return f'{normalized_provider}/{model_name}'
+
     return model_name
 
 

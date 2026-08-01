@@ -37,4 +37,4 @@ ENV FLASK_ENV=production
 EXPOSE ${PORT}
 
 # Run the production WSGI application with Gunicorn
-CMD ["sh", "-c", "exec gunicorn --workers 4 --bind 0.0.0.0:${PORT:-5001} 'run:app'"]
+CMD ["sh", "-c", "exec gunicorn --workers 4 --timeout 600 --bind 0.0.0.0:${PORT:-5001} 'run:app'"]

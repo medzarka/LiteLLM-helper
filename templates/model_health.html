@@ -5,9 +5,18 @@
         <h1 class="h2 mb-1"><i class="bi bi-heart-pulse text-danger me-2"></i>Model Health Monitor</h1>
         <p class="text-muted mb-0">Probe active AI model endpoints and track real-time 20-run uptime availability history.</p>
     </div>
-    <button class="btn btn-primary" id="runHealthCheck">
-        <i class="bi bi-arrow-repeat me-1"></i> Run Health Check
-    </button>
+    <div class="d-flex gap-2 align-items-center">
+        <label for="providerFilter" class="form-label mb-0 fw-bold small text-muted">Provider Filter:</label>
+        <select class="form-select w-auto" id="providerFilter">
+            <option value="all">All Providers</option>
+            {% for provider in models | map(attribute='provider_name') | unique | sort %}
+                <option value="{{ provider }}">{{ provider }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-primary" id="runHealthCheck">
+            <i class="bi bi-arrow-repeat me-1"></i> Run Health Check
+        </button>
+    </div>
 </div>
 
 {% if models|selectattr('last_status', 'eq', 'skipped')|list|length == models|length and models|length > 0 %}
@@ -53,7 +62,10 @@
             <table class="table table-hover align-middle mb-0" id="health-table">
                 <thead class="table-light">
                     <tr>
-                        <th style="width: 20%;">Model Name</th>
+                        <th style="width: 3%;" class="text-center">
+                            <input class="form-check-input" type="checkbox" id="selectAllModels" checked>
+                        </th>
+                        <th style="width: 17%;">Model Name</th>
                         <th style="width: 12%;">Provider</th>
                         <th style="width: 12%;">Latency (ms)</th>
                         <th style="width: 13%;">Last Success</th>
@@ -64,6 +76,9 @@
                 <tbody>
                     {% for model in models %}
                     <tr data-model-id="{{ model.id }}">
+                        <td class="text-center align-middle">
+                            <input class="form-check-input model-checkbox" type="checkbox" value="{{ model.id }}" data-provider="{{ model.provider_name }}" checked>
+                        </td>
                         <td>
                             <div class="fw-bold">{{ model.name }}</div>
                             <small class="text-muted"><code>{{ model.actual_model }}</code></small>
@@ -239,13 +254,58 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const btn = document.getElementById('runHealthCheck');
     const progress = document.getElementById('progress-section');
+    const checkboxes = document.querySelectorAll('.model-checkbox');
+    const selectAllBtn = document.getElementById('selectAllModels');
+    const providerFilter = document.getElementById('providerFilter');
+
+    // Handle "Select All" toggle
+    selectAllBtn.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        if (this.checked) providerFilter.value = 'all';
+    });
+
+    // Handle "Provider Filter" change
+    providerFilter.addEventListener('change', function() {
+        const selectedProvider = this.value;
+        checkboxes.forEach(cb => {
+            if (selectedProvider === 'all') {
+                cb.checked = true;
+            } else {
+                cb.checked = (cb.getAttribute('data-provider') === selectedProvider);
+            }
+        });
+        selectAllBtn.checked = (selectedProvider === 'all');
+    });
+
+    // Checkbox manual toggle logic for selectAll state
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const allChecked = Array.from(checkboxes).every(c => c.checked);
+            selectAllBtn.checked = allChecked;
+            if (!allChecked && providerFilter.value !== 'all') {
+                providerFilter.value = 'all'; // Reset filter when manual custom selection
+            }
+        });
+    });
 
     btn.addEventListener('click', async function() {
+        const selectedIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+        if (selectedIds.length === 0) {
+            alert('Please select at least one model to check.');
+            return;
+        }
+
         btn.disabled = true;
         progress.classList.remove('d-none');
 
         try {
-            const response = await fetch('/models/health/run', { method: 'POST' });
+            const response = await fetch('/models/health/run', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model_ids: selectedIds })
+            });
             if (response.ok) {
                 setTimeout(() => window.location.reload(), 500);
             } else {

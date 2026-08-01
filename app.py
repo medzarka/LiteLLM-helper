@@ -250,7 +250,9 @@ def create_app():
             from .services.health_check import run_health_check
         except (ImportError, ValueError):
             from services.health_check import run_health_check
-        report = run_health_check(timeout=20)
+        data = request.get_json(silent=True) or {}
+        model_ids = data.get('model_ids')
+        report = run_health_check(timeout=20, model_ids=model_ids)
         return jsonify(report)
 
     @app.route('/models/provider/<provider_name>')

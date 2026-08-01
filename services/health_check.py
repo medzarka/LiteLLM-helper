@@ -208,7 +208,7 @@ def _check_provider_models(provider_task):
     return provider_results
 
 
-def run_health_check(timeout=20, delay_between_calls=0.5):
+def run_health_check(timeout=20, delay_between_calls=0.5, model_ids=None):
     """
     Probe models concurrently with exactly 1 thread per provider.
     Each provider thread sequentially tests its own list of models with a pause (delay_between_calls seconds) between probes.
@@ -230,6 +230,8 @@ def run_health_check(timeout=20, delay_between_calls=0.5):
         api_key = active_keys[0]['key_value'] if active_keys else None
 
         models = DBAIModel(db).get_by_provider_by_id(p_id)
+        if models and model_ids is not None:
+            models = [m for m in models if str(m['id']) in map(str, model_ids)]
         if models:
             provider_tasks.append((provider, api_key, models, timeout, delay_between_calls))
 

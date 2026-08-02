@@ -249,6 +249,9 @@ def generate_config(
         if model.get('tpd_limit') and model['tpd_limit'] > 0:
             entry['litellm_params']['model_info']['tpd_limit'] = model['tpd_limit']
 
+        if bool(model.get('supports_function_calling', True)) or 'function_calling' in [s.lower() for s in model.get('skills', [])]:
+            entry['litellm_params']['drop_params'] = True
+
         if model.get('rpm_limit') and model['rpm_limit'] > 0:
             entry['litellm_params']['rpm'] = model['rpm_limit']
         if model.get('tpm_limit') and model['tpm_limit'] > 0:

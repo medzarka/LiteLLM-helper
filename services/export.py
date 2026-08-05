@@ -233,8 +233,8 @@ def generate_config(
                 'model': normalized_model,
                 'api_key': key['key_value'],
                 'custom_llm_provider': normalized_provider,
-                'timeout': model.get('timeout', 60.0),
-                'stream_timeout': model.get('stream_timeout', 20.0),
+                'timeout': model.get('timeout', 600.0),
+                'stream_timeout': model.get('stream_timeout', 300.0),
                 'max_retries': model.get('max_retries', 2),
                 'model_info': {
                     'mode': mode,

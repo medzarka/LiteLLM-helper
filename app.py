@@ -778,7 +778,7 @@ def create_app():
         try:
             db = Database()
             model_obj = AIModel(db)
-            count = model_obj.update_all_models_timeout(timeout=60.0, stream_timeout=20.0)
+            count = model_obj.update_all_models_timeout(timeout=600.0, stream_timeout=300.0)
             return jsonify({
                 'status': 'success',
                 'updated_count': count

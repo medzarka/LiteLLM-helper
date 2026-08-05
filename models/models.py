@@ -75,8 +75,8 @@ class Database:
             tpd_limit INTEGER DEFAULT 0,
             rpm_month_limit INTEGER DEFAULT 0,
             tpm_month_limit INTEGER DEFAULT 0,
-            timeout REAL DEFAULT 60.0,
-            stream_timeout REAL DEFAULT 20.0,
+            timeout REAL DEFAULT 600.0,
+            stream_timeout REAL DEFAULT 300.0,
             max_retries INTEGER DEFAULT 2,
             supports_function_calling BOOLEAN DEFAULT 1,
             skills TEXT DEFAULT '[]',
@@ -496,7 +496,7 @@ class AIModel:
             return cursor.rowcount > 0
         return False
 
-    def update_all_models_timeout(self, timeout=60.0, stream_timeout=20.0):
+    def update_all_models_timeout(self, timeout=600.0, stream_timeout=300.0):
         """Update timeout and stream_timeout for all models"""
         cursor = self.db.conn.cursor()
         cursor.execute(

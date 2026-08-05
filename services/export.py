@@ -202,14 +202,15 @@ def generate_config(
     ALLOWED_LITELLM_PARAMS = {
         'model', 'api_key', 'api_base', 'custom_llm_provider',
         'rpm', 'tpm', 'timeout', 'stream_timeout', 'max_retries',
-        'model_info', 'organization', 'api_version', 'drop_params'
+        'model_info', 'organization', 'api_version', 'drop_params',
+        'stop', 'temperature'
     }
 
 
     # Get all models with provider info
     providers = provider_obj.get_all()
 
-    def _build_model_entry(model, provider, key, name):
+    def _build_model_entry(model, provider, key, name, is_hermes=False):
         normalized_provider = _normalize_provider_for_litellm(model.get('provider_name'))
         normalized_model = _normalize_model_name(model.get('actual_model', ''), model.get('provider_name'))
         m_type = (model.get('model_type') or '').lower().strip()
@@ -259,6 +260,15 @@ def generate_config(
         if provider.get('api_base'):
             entry['litellm_params']['api_base'] = provider['api_base']
 
+        if is_hermes:
+            entry['litellm_params']['stop'] = [
+                "<|im_end|>",
+                "<|tool_call>",
+                "<|im_start|>",
+                "<|\"|>"
+            ]
+            entry['litellm_params']['temperature'] = 0.1
+
         # Ensure top-level litellm_params strictly contains only LiteLLM recognized keys
         top_level_keys = list(entry['litellm_params'].keys())
         for k in top_level_keys:
@@ -289,7 +299,7 @@ def generate_config(
                 # 3. Emit Hermes virtual aliases
                 if model['id'] in model_id_to_hermes_tasks:
                     for h_task in model_id_to_hermes_tasks[model['id']]:
-                        config['model_list'].append(_build_model_entry(model, provider, key, h_task))
+                        config['model_list'].append(_build_model_entry(model, provider, key, h_task, is_hermes=True))
 
     db.close()
     return config

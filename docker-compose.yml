@@ -30,7 +30,8 @@ services:
     volumes:
       - ${WORKDIR}/litellm/config.yaml:/app/config.yaml
     environment:
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      - LITELLM_TIMEOUT=900 # Sets the timeout to 15 minutes (900 seconds)
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     command: [
       "--config", "/app/config.yaml",
       "--port", "4000",

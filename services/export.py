@@ -180,7 +180,7 @@ def generate_config(
 
     if include_general:
         config['general_settings'] = {
-            'background_health_checks': include_health_checks,
+            'background_health_checks': False, # Disabled to prevent 'Too many open files' on large configs
             'health_check_interval': 1800
         }
 
@@ -267,7 +267,7 @@ def generate_config(
                 "<|im_start|>",
                 "<|\"|>"
             ]
-            entry['litellm_params']['temperature'] = 0.1
+            # Removed temperature override due to Gemini 3+ deprecation warnings
 
         # Ensure top-level litellm_params strictly contains only LiteLLM recognized keys
         top_level_keys = list(entry['litellm_params'].keys())

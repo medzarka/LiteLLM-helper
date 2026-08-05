@@ -263,11 +263,11 @@ def generate_config(
         if is_hermes:
             entry['litellm_params']['stop'] = [
                 "<|im_end|>",
-                "<|tool_call>",
-                "<|im_start|>",
-                "<|\"|>"
+                "</tool_call>",
+                "<|im_start|>"
             ]
-            # Removed temperature override due to Gemini 3+ deprecation warnings
+            if normalized_provider != 'gemini':
+                entry['litellm_params']['temperature'] = 0.1
 
         # Ensure top-level litellm_params strictly contains only LiteLLM recognized keys
         top_level_keys = list(entry['litellm_params'].keys())

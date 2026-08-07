@@ -195,6 +195,7 @@ def generate_config(
             'drop_params': True,
             'modify_params': True,
             'json_logs': True,
+            'telemetry': False,
             'cache': include_cache
         }
         

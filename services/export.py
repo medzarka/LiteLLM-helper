@@ -182,7 +182,10 @@ def generate_config(
         if include_cache:
             config['router_settings']['redis_host'] = "os.environ/REDIS_HOST"
             config['router_settings']['redis_port'] = "os.environ/REDIS_PORT"
-            config['router_settings']['redis_password'] = "os.environ/REDIS_PASSWORD"
+            
+            # Only inject password if it's explicitly set to avoid auth errors on empty strings
+            if os.environ.get('REDIS_PASSWORD'):
+                config['router_settings']['redis_password'] = "os.environ/REDIS_PASSWORD"
 
     if include_general:
         config['general_settings'] = {
@@ -203,9 +206,10 @@ def generate_config(
             config['litellm_settings']['cache_params'] = {
                 'type': 'redis',
                 'host': "os.environ/REDIS_HOST",
-                'port': "os.environ/REDIS_PORT",
-                'password': "os.environ/REDIS_PASSWORD"
+                'port': "os.environ/REDIS_PORT"
             }
+            if os.environ.get('REDIS_PASSWORD'):
+                config['litellm_settings']['cache_params']['password'] = "os.environ/REDIS_PASSWORD"
 
     # Map model id -> shared aggregation name (user-defined merge / rename).
     id_to_shared = {}

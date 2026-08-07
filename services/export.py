@@ -179,6 +179,11 @@ def generate_config(
             if fb_format:
                 config['router_settings']['fallbacks'] = fb_format
 
+        if include_cache:
+            config['router_settings']['redis_host'] = "os.environ/REDIS_HOST"
+            config['router_settings']['redis_port'] = "os.environ/REDIS_PORT"
+            config['router_settings']['redis_password'] = "os.environ/REDIS_PASSWORD"
+
     if include_general:
         config['general_settings'] = {
             'background_health_checks': False, # Disabled to prevent 'Too many open files' on large configs
@@ -192,6 +197,14 @@ def generate_config(
             'json_logs': True,
             'cache': include_cache
         }
+        
+        if include_cache:
+            config['litellm_settings']['cache_params'] = {
+                'type': 'redis',
+                'host': "os.environ/REDIS_HOST",
+                'port': "os.environ/REDIS_PORT",
+                'password': "os.environ/REDIS_PASSWORD"
+            }
 
     # Map model id -> shared aggregation name (user-defined merge / rename).
     id_to_shared = {}
@@ -374,7 +387,7 @@ def sync_to_shared_volume(config_dict, format_type='yaml'):
     import urllib.request
     import time
     
-    time.sleep(1) # Give LiteLLM a moment to detect the file change via --watch
+    time.sleep(5) # Give LiteLLM a moment to detect the file change via --watch
     
     # In docker-compose, the container is named `litellm` and exposes port 4000
     # Use litellm:4000 or fallback to localhost:4000

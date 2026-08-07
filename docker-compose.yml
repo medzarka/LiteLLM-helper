@@ -52,6 +52,7 @@ services:
       - REDIS_PASSWORD=
       - SERVER_TIMEOUT=${SERVER_TIMEOUT:-600} # Agent Stability
       - LITELLM_WORKERS=${LITELLM_WORKERS:-2}
+      - HF_TOKEN=${HF_TOKEN}
     command: [
       "--config", "/app/config.yaml",
       "--port", "4000"

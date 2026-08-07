@@ -50,12 +50,12 @@ services:
       - REDIS_HOST=litellm-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
-      - SERVER_TIMEOUT=600 # Agent Stability
-      - LITELLM_WORKERS=4
+      - SERVER_TIMEOUT=${SERVER_TIMEOUT:-600} # Agent Stability
+      - LITELLM_WORKERS=${LITELLM_WORKERS:-2}
     command: [
       "--config", "/app/config.yaml",
-      "--port", "4000",
-      "--reload"
+      "--port", "4000"
+     #"--reload"
     ]
 
   # ========================================================

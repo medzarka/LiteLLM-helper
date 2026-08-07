@@ -74,6 +74,13 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-check-label">
+                                    <input type="checkbox" class="form-check-input" id="includeCache" name="include_cache">
+                                    Enable Caching (In-Memory / Redis)
+                                </label>
+                                <div class="form-text">Caches exact queries to drastically save free-tier tokens.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label">
                                     <input type="checkbox" class="form-check-input" id="includeHealthChecks" name="include_health_checks">
                                     Enable background health checks
                                 </label>
@@ -280,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function prepareParams(formEl) {
         const formData = new FormData(formEl);
-        ['include_health_checks', 'include_aggregations', 'include_fallbacks'].forEach(field => {
+        ['include_health_checks', 'include_aggregations', 'include_fallbacks', 'include_cache'].forEach(field => {
             if (!formData.has(field)) {
                 formData.append(field, 'false');
             }

@@ -632,6 +632,7 @@ def create_app():
         include_fallbacks = request.args.get('include_fallbacks') != 'false'
         include_aggregations = request.args.get('include_aggregations') != 'false'
         exclude_unhealthy = request.args.get('exclude_unhealthy') in ('true', 'on', '1', 'yes')
+        include_cache = request.args.get('include_cache') in ('true', 'on', '1', 'yes')
 
         config = generate_config(
             include_router=include_router,
@@ -641,7 +642,8 @@ def create_app():
             include_health_checks=include_health_checks,
             include_fallbacks=include_fallbacks,
             include_aggregations=include_aggregations,
-            exclude_unhealthy=exclude_unhealthy
+            exclude_unhealthy=exclude_unhealthy,
+            include_cache=include_cache
         )
     
         if format_type == 'yaml':
@@ -671,6 +673,7 @@ def create_app():
         include_fallbacks = request.args.get('include_fallbacks') != 'false'
         include_aggregations = request.args.get('include_aggregations') != 'false'
         exclude_unhealthy = request.args.get('exclude_unhealthy') in ('true', 'on', '1', 'yes')
+        include_cache = request.args.get('include_cache') in ('true', 'on', '1', 'yes')
         
         config = generate_config(
             include_router=include_router,
@@ -680,7 +683,8 @@ def create_app():
             include_health_checks=include_health_checks,
             include_fallbacks=include_fallbacks,
             include_aggregations=include_aggregations,
-            exclude_unhealthy=exclude_unhealthy
+            exclude_unhealthy=exclude_unhealthy,
+            include_cache=include_cache
         )
         
         if format_type == 'yaml':
@@ -716,6 +720,7 @@ def create_app():
         include_fallbacks = request.args.get('include_fallbacks') != 'false'
         include_aggregations = request.args.get('include_aggregations') != 'false'
         exclude_unhealthy = request.args.get('exclude_unhealthy') in ('true', 'on', '1', 'yes')
+        include_cache = request.args.get('include_cache') in ('true', 'on', '1', 'yes')
         
         try:
             config = generate_config(
@@ -726,7 +731,8 @@ def create_app():
                 include_health_checks=include_health_checks,
                 include_fallbacks=include_fallbacks,
                 include_aggregations=include_aggregations,
-                exclude_unhealthy=exclude_unhealthy
+                exclude_unhealthy=exclude_unhealthy,
+                include_cache=include_cache
             )
             
             result = sync_to_shared_volume(config, format_type)

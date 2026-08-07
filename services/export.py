@@ -118,7 +118,8 @@ def generate_config(
     include_health_checks=False,
     include_fallbacks=True,
     include_aggregations=True,
-    exclude_unhealthy=False
+    exclude_unhealthy=False,
+    include_cache=False
 ):
     """Generate a complete LiteLLM configuration based on v3 system description"""
     db = Database()
@@ -187,7 +188,9 @@ def generate_config(
     if include_litellm:
         config['litellm_settings'] = {
             'drop_params': True,
-            'cache': False
+            'modify_params': True,
+            'json_logs': True,
+            'cache': include_cache
         }
 
     # Map model id -> shared aggregation name (user-defined merge / rename).
@@ -203,7 +206,7 @@ def generate_config(
         'model', 'api_key', 'api_base', 'custom_llm_provider',
         'rpm', 'tpm', 'timeout', 'stream_timeout', 'max_retries',
         'model_info', 'organization', 'api_version', 'drop_params',
-        'stop', 'temperature'
+        'stop', 'temperature', 'safe_prompt', 'top_p', 'presence_penalty', 'frequency_penalty'
     }
 
 
@@ -227,15 +230,37 @@ def generate_config(
         else:
             mode = 'chat'
 
+        # Determine if this endpoint is configured for Agentic workloads
+        is_agent_endpoint = is_hermes or name.lower().startswith('hermes')
+
+        # 1. Base provider retries (always consistent)
+        provider_retries = {'groq': 1, 'mistral': 1, 'ollama': 1}.get(normalized_provider, 2)
+
+        # 2. Context-Aware Timeouts
+        if is_agent_endpoint:
+            # Agent Config: Needs massive timeouts to process tool calls and chain-of-thought
+            timeout = 600.0
+            stream_timeout = 15.0
+        else:
+            # Chat Config: Fail-fast to cascade to fallbacks instantly
+            chat_timeouts = {
+                'groq': (10.0, 5.0),
+                'gemini': (60.0, 10.0),
+                'mistral': (60.0, 10.0),
+                'ollama': (120.0, 30.0),
+                'openrouter': (90.0, 15.0)
+            }
+            timeout, stream_timeout = chat_timeouts.get(normalized_provider, (60.0, 15.0))
+
         entry = {
             'model_name': name,
             'litellm_params': {
                 'model': normalized_model,
                 'api_key': key['key_value'],
                 'custom_llm_provider': normalized_provider,
-                'timeout': model.get('timeout', 600.0),
-                'stream_timeout': model.get('stream_timeout', 300.0),
-                'max_retries': model.get('max_retries', 2),
+                'timeout': timeout,
+                'stream_timeout': stream_timeout,
+                'max_retries': provider_retries,
                 'model_info': {
                     'mode': mode,
                     'supports_function_calling': bool(model.get('supports_function_calling', True)),
@@ -260,7 +285,10 @@ def generate_config(
         if provider.get('api_base'):
             entry['litellm_params']['api_base'] = provider['api_base']
 
-        if is_hermes:
+        if normalized_provider == 'mistral':
+            entry['litellm_params']['safe_prompt'] = False
+
+        if is_agent_endpoint:
             entry['litellm_params']['stop'] = [
                 "<|im_end|>",
                 "</tool_call>",

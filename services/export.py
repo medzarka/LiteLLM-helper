@@ -180,12 +180,10 @@ def generate_config(
                 config['router_settings']['fallbacks'] = fb_format
 
         if include_cache:
-            config['router_settings']['redis_host'] = "os.environ/REDIS_HOST"
-            config['router_settings']['redis_port'] = "os.environ/REDIS_PORT"
-            
-            # Only inject password if it's explicitly set to avoid auth errors on empty strings
-            if os.environ.get('REDIS_PASSWORD'):
-                config['router_settings']['redis_password'] = "os.environ/REDIS_PASSWORD"
+            # LiteLLM natively picks up REDIS_HOST, REDIS_PORT, and REDIS_PASSWORD 
+            # from the environment. We don't need to explicitly pass them via os.environ strings
+            # which avoids type-casting bugs in newer redis-py clients (e.g. port as string).
+            pass
 
     if include_general:
         config['general_settings'] = {
@@ -204,12 +202,8 @@ def generate_config(
         
         if include_cache:
             config['litellm_settings']['cache_params'] = {
-                'type': 'redis',
-                'host': "os.environ/REDIS_HOST",
-                'port': "os.environ/REDIS_PORT"
+                'type': 'redis'
             }
-            if os.environ.get('REDIS_PASSWORD'):
-                config['litellm_settings']['cache_params']['password'] = "os.environ/REDIS_PASSWORD"
 
     # Map model id -> shared aggregation name (user-defined merge / rename).
     id_to_shared = {}

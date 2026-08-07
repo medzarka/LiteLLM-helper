@@ -282,6 +282,10 @@ def generate_config(
                 }
             }
         }
+        
+        # Explicitly disable assistant prefill for providers that don't support it
+        if normalized_provider in ('gemini', 'groq', 'cerebras', 'vertex_ai', 'vertexai'):
+            entry['litellm_params']['model_info']['supports_assistant_prefill'] = False
         if model.get('max_input_tokens') and model['max_input_tokens'] > 0:
             entry['litellm_params']['model_info']['max_input_tokens'] = model['max_input_tokens']
         if model.get('rpd_limit') and model['rpd_limit'] > 0:

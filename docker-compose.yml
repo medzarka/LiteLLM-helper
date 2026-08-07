@@ -19,6 +19,19 @@ services:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
 
   # ========================================================
+  # REDIS CACHE (For LiteLLM Usage-Based Routing & Cache)
+  # ========================================================
+  litellm-redis:
+    image: redis:alpine
+    container_name: litellm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${WORKDIR}/redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+
+  # ========================================================
   # LITELLM GATEWAY/PROXY (Stateless Mode)
   # ========================================================
   litellm:
@@ -29,9 +42,16 @@ services:
       - "4000:4000"
     volumes:
       - ${WORKDIR}/litellm/config.yaml:/app/config.yaml
+    depends_on:
+      - litellm-redis
     environment:
-      - LITELLM_TIMEOUT=${LITELLM_TIMEOUT:-3600} # Sets the timeout to 60 minutes (3600 seconds)
+      - LITELLM_TIMEOUT=${LITELLM_TIMEOUT:-600} # Sets the timeout to 60 minutes (3600 seconds)
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - REDIS_HOST=litellm-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - SERVER_TIMEOUT=600 # Agent Stability
+      - LITELLM_WORKERS=4
     command: [
       "--config", "/app/config.yaml",
       "--port", "4000",

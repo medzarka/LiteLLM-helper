@@ -342,6 +342,10 @@ def generate_config(
                 if model['id'] in model_id_to_hermes_tasks:
                     for h_task in model_id_to_hermes_tasks[model['id']]:
                         config['model_list'].append(_build_model_entry(model, provider, key, h_task, is_hermes=True))
+                        
+                if is_aggregated and shared_name in model_id_to_hermes_tasks:
+                    for h_task in model_id_to_hermes_tasks[shared_name]:
+                        config['model_list'].append(_build_model_entry(model, provider, key, h_task, is_hermes=True))
 
     db.close()
     return config

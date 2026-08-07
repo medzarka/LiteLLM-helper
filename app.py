@@ -605,6 +605,20 @@ def create_app():
             models.extend(model_obj.get_by_provider(provider['name']))
             
         db.close()
+        
+        # Add aggregated models to the dropdown list
+        try:
+            agg_data = compute_aggregations(only_aggregated=True)
+            for agg in agg_data.get('aggregation_list', []):
+                models.append({
+                    'id': agg['shared_name'],
+                    'name': agg['shared_name'],
+                    'provider_name': 'Aggregated',
+                    'actual_model': agg['shared_name'],
+                    'skills': list(agg.get('skills', []))
+                })
+        except Exception as e:
+            print(f"Error loading aggregations for hermes_agents: {e}")
         return render_template('hermes_agents.html', models=models, current_agents=current_agents, active='hermes')
 
     @app.route('/export-config')

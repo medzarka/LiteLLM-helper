@@ -55,8 +55,8 @@ services:
       - HF_TOKEN=${HF_TOKEN}
     command: [
       "--config", "/app/config.yaml",
-      "--port", "4000"
-     #"--reload"
+      "--port", "4000",
+      "--reload"
     ]
 
   # ========================================================

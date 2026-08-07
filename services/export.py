@@ -194,7 +194,7 @@ def generate_config(
         config['litellm_settings'] = {
             'drop_params': True,
             'modify_params': True,
-            'json_logs': True,
+            'json_logs': False,
             'telemetry': False,
             'cache': include_cache
         }

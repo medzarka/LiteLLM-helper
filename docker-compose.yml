@@ -13,7 +13,7 @@ services:
     command:
       - |
         echo ">>> [Init] Creating storage directories under /data..."
-        mkdir -p /data/litellm-helper /data/litellm /data/redis_data /data/qdrant /data/open-webui
+        mkdir -p /data/litellm-helper /data/litellm /data/redis_data
 
         echo ">>> [Init] Setting permissions..."
         chmod -R 775 /data
@@ -124,106 +124,6 @@ services:
       "--port", "4000",
       "--reload"
     ]
-    networks:
-      - shared_net
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ========================================================
-  # QDRANT VECTOR DATABASE (For Open-WebUI RAG)
-  # ========================================================
-  qdrant:
-    image: qdrant/qdrant:v1.18.0
-    container_name: qdrant
-    platform: linux/arm64
-    restart: unless-stopped
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ${WORKDIR:-/srv/data/ai-ui}/qdrant:/qdrant/storage
-    environment:
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
-    depends_on:
-      init-volumes:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 5s bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - shared_net
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ========================================================
-  # OPEN-WEBUI CHAT INTERFACE
-  # ========================================================
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
-    platform: linux/arm64
-    restart: unless-stopped
-    ports:
-      - "${OPEN_WEBUI_PORT:-3030}:8080"
-    volumes:
-      - ${WORKDIR:-/srv/data/ai-ui}/open-webui:/app/backend/data
-    environment:
-      # --- 1. UI Customization ---
-      - WEBUI_NAME=${WEBUI_NAME:-Bluewave AI Hub}
-      - WEBUI_BRAND=${WEBUI_BRAND:-Bluewave AI Hub}
-      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
-      - BYPASS_MODEL_ACCESS_CONTROL=true
-      - WEBUI_WORKERS=${WEBUI_WORKERS:-4}
-
-      # --- 2. LLM Chat Models ---
-      - OPENAI_API_BASE_URLS=http://litellm:4000/v1
-      - OPENAI_API_KEYS=${LITELLM_MASTER_KEY}
-      
-      # --- 3. Infinity Embeddings & RAG Engine ---
-      - RAG_EMBEDDING_ENGINE=openai
-      - RAG_OPENAI_API_BASE_URL=http://${INFINITY_IP}:${INFINITY_PORT:-9999}/v1
-      - RAG_OPENAI_API_KEY=${INFINITY_API_KEY}
-      - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
-
-      # --- 4. SearXNG Web Search Integration ---
-      - ENABLE_RAG_WEB_SEARCH=True
-      - RAG_WEB_SEARCH_ENGINE=searxng
-      - SEARXNG_SEARCH_URL=http://${SEARXNG_IP}:${SEARXNG_PORT:-8080}/search?q=<query>
-      - BYPASS_WEB_SEARCH_WEB_LOADER=True
-
-      # --- 5. Docling Document Parsing & Vision Extraction ---
-      - RAG_FILE_MAX_SIZE=100
-      - CONTENT_EXTRACTION_ENGINE=docling
-      - DOCLING_SERVER_URL=http://${DOCLING_IP}:${DOCLING_PORT:-5501}
-      - DOCLING_PARAMS={"include_images":true,"do_picture_description":true,"picture_description_options":{"engine":"api","url":"http://litellm:4000/v1/chat/completions","api_key":"${LITELLM_MASTER_KEY}","model":"google-gemini-3.1-flash-lite","prompt":"Analyze this image, chart, map, or diagram. Extract the axis labels, numerical trends, visual data structures, and provide a clear description for an academic knowledge base."}}
-
-      # Timeouts
-      - HTTP_TIMEOUT=1800
-      - DOCLING_TIMEOUT=1800
-      - AIOHTTP_TIMEOUT=1800
-      - AUDIO_TTS_ENGINE=web
-      - AUDIO_STT_ENGINE=web
-
-      # --- 6. Vector Database integration via Qdrant ---
-      - VECTOR_DB=qdrant
-      - QDRANT_URI=http://qdrant:6333
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-
-    depends_on:
-      init-volumes:
-        condition: service_completed_successfully
-      litellm:
-        condition: service_started
-      qdrant:
-        condition: service_healthy
     networks:
       - shared_net
     logging:

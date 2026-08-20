@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <div>
+        <h1 class="h2 mb-1"><i class="bi bi-heart-pulse text-danger me-2"></i>Model Health Monitor</h1>
+        <p class="text-muted mb-0">Probe active AI model endpoints and track real-time 20-run uptime availability history.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <label for="providerFilter" class="form-label mb-0 fw-bold small text-muted">Provider Filter:</label>
+        <select class="form-select w-auto" id="providerFilter">
+            <option value="all">All Providers</option>
+            {% for provider in models | map(attribute='provider_name') | unique | sort %}
+                <option value="{{ provider }}">{{ provider }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-outline-danger me-2 shadow-sm" id="btnResetHealth" data-bs-toggle="modal" data-bs-target="#resetHealthModal">
+            <i class="bi bi-trash me-1"></i> Reset All
+        </button>
+        <button class="btn btn-primary shadow-sm" id="runHealthCheck">
+            <i class="bi bi-arrow-repeat me-1"></i> Run Health Check
+        </button>
+    </div>
+</div>
+
+{% if models|selectattr('last_status', 'eq', 'skipped')|list|length == models|length and models|length > 0 %}
+<div class="alert alert-warning shadow-sm border-0" id="litellm-warning">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>litellm package missing:</strong> Install <code>pip install litellm</code> to enable live model health checks. Models currently return "skipped".
+</div>
+{% endif %}
+
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4 mt-2">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-success bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-check-circle"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Operational (OK)</div>
+                    <h3 class="mb-0 fw-bold">{{ models|selectattr('last_status', 'eq', 'ok')|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-danger bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-exclamation-triangle"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Not Found</div>
+                    <h3 class="mb-0 fw-bold">{{ models|selectattr('last_status', 'eq', 'not_found')|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-warning bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-x-circle text-dark"></i></div>
+                <div>
+                    <div class="text-dark fw-semibold text-uppercase small" style="opacity: 0.6;">Errors</div>
+                    <h3 class="mb-0 fw-bold text-dark">{{ models|selectattr('last_status', 'eq', 'error')|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-secondary bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-dash-circle"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Skipped / Pending</div>
+                    {% set skipped = models|selectattr('last_status', 'eq', 'skipped')|list|length %}
+                    {% set unknown = models|selectattr('last_status', 'eq', 'unknown')|list|length %}
+                    <h3 class="mb-0 fw-bold">{{ skipped + unknown }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="health-table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 3%;" class="text-center">
+                            <input class="form-check-input" type="checkbox" id="selectAllModels" checked>
+                        </th>
+                        <th style="width: 17%;">Model Name</th>
+                        <th style="width: 12%;">Provider</th>
+                        <th style="width: 12%;">Latency (ms)</th>
+                        <th style="width: 13%;">Last Success</th>
+                        <th style="width: 30%;">Uptime History (Last 20 Runs)</th>
+                        <th style="width: 13%;" class="text-end">Latest Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr data-model-id="{{ model.id }}">
+                        <td class="text-center align-middle">
+                            <input class="form-check-input model-checkbox" type="checkbox" value="{{ model.id }}" data-provider="{{ model.provider_name }}" checked>
+                        </td>
+                        <td>
+                            <div class="fw-bold">{{ model.name }}</div>
+                            <small class="text-muted"><code>{{ model.actual_model }}</code></small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ model.provider_name }}</span>
+                            {% if model.model_type %}
+                            <span class="badge bg-info text-dark ms-1">{{ model.model_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.latency_stats and model.latency_stats.avg_latency > 0 %}
+                                {% set avg = model.latency_stats.avg_latency %}
+                                {% if avg < 400 %}
+                                    <span class="badge bg-success" data-bs-toggle="tooltip" title="Min: {{ model.latency_stats.min_latency }}ms | Max: {{ model.latency_stats.max_latency }}ms"><i class="bi bi-lightning-fill me-1"></i>{{ avg }} ms</span>
+                                {% elif avg < 1200 %}
+                                    <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Min: {{ model.latency_stats.min_latency }}ms | Max: {{ model.latency_stats.max_latency }}ms"><i class="bi bi-speedometer2 me-1"></i>{{ avg }} ms</span>
+                                {% else %}
+                                    <span class="badge bg-danger" data-bs-toggle="tooltip" title="Min: {{ model.latency_stats.min_latency }}ms | Max: {{ model.latency_stats.max_latency }}ms"><i class="bi bi-hourglass-split me-1"></i>{{ avg }} ms</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">--</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.last_success_at %}
+                            <span class="text-success small fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>{{ model.last_success_at }}</span>
+                            {% else %}
+                            <span class="text-muted small"><i class="bi bi-dash-circle me-1"></i>Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- 20 Squares Bar -->
+                            <div class="d-flex align-items-center gap-1 flex-wrap py-1">
+                                {% set hist_len = model.history|length %}
+                                {% set padding = 20 - hist_len %}
+                                
+                                <!-- Empty slots for missing checks (left side) -->
+                                {% if padding > 0 %}
+                                    {% for i in range(padding) %}
+                                    <div class="uptime-square border" 
+                                         style="width: 14px; height: 22px; border-radius: 3px; background-color: #f8f9fa; border-color: #dee2e6!important;" 
+                                         data-bs-toggle="tooltip" 
+                                         title="No check record yet"></div>
+                                    {% endfor %}
+                                {% endif %}
+                                
+                                <!-- Actual 20 run history (oldest to newest) -->
+                                {% for check in model.history %}
+                                    {% if check.status == 'ok' %}
+                                        <div class="uptime-square bg-success" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="OK | {{ check.checked_at }}"></div>
+                                    {% elif check.status == 'skipped' %}
+                                        <div class="uptime-square bg-secondary" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="Skipped | {{ check.checked_at }} | {{ check.message }}"></div>
+                                    {% else %}
+                                        <div class="uptime-square bg-danger" 
+                                             style="width: 14px; height: 22px; border-radius: 3px;" 
+                                             data-bs-toggle="tooltip" 
+                                             title="{{ check.status|upper }} | {{ check.checked_at }} | {{ check.message }}"></div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            {% if model.last_status == 'ok' %}
+                            <span class="badge bg-success px-2 py-1"><i class="bi bi-check-lg me-1"></i>OK</span>
+                            {% elif model.last_status == 'not_found' %}
+                            <span class="badge bg-danger px-2 py-1"><i class="bi bi-x-circle me-1"></i>Not Found</span>
+                            {% elif model.last_status == 'error' %}
+                            <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-exclamation-triangle me-1"></i>Error</span>
+                            {% else %}
+                            <span class="badge bg-secondary px-2 py-1">{{ model.last_status or 'Never' }}</span>
+                            {% endif %}
+
+                            {% if model.last_message %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary view-error-btn ms-1"
+                                    data-model-name="{{ model.name }} ({{ model.actual_model }})"
+                                    data-status="{{ model.last_status }}"
+                                    data-error-msg="{{ model.last_message }}"
+                                    data-bs-toggle="tooltip" title="View exception / check message">
+                                <i class="bi bi-info-circle-fill"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 d-none" id="progress-section">
+    <div class="alert alert-info border-0 shadow-sm">
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            <span>Probing model endpoints... please wait.</span>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Health Modal -->
+<div class="modal fade" id="resetHealthModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Reset Health Checks</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the health history for all models? This will reset all uptime charts and last-checked timestamps.</p>
+                <p class="mb-0 text-danger fw-bold">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmResetHealthBtn">
+                    <i class="bi bi-trash me-1"></i> Yes, Reset All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Health Check Message Details Modal -->
+<div class="modal fade" id="healthErrorModal" tabindex="-1" aria-labelledby="healthErrorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="healthErrorModalLabel"><i class="bi bi-bug-fill me-2 text-warning"></i>Health Check Message Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="fw-bold mb-2" id="modal-model-title">Model Name</h6>
+                <div class="mb-3">
+                    <span class="badge" id="modal-status-badge">Status</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold">Message / Exception Output:</label>
+                    <pre class="p-3 rounded border bg-light text-dark" id="modal-error-content" style="white-space: pre-wrap; word-break: break-word; font-family: monospace; max-height: 400px; overflow-y: auto;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function initTooltips() {
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    }
+    initTooltips();
+
+    const errorModalEl = document.getElementById('healthErrorModal');
+    const errorModal = new bootstrap.Modal(errorModalEl);
+
+    document.querySelectorAll('.view-error-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const name = this.getAttribute('data-model-name');
+            const status = this.getAttribute('data-status');
+            const msg = this.getAttribute('data-error-msg') || 'No error message recorded.';
+
+            document.getElementById('modal-model-title').textContent = name;
+            document.getElementById('modal-error-content').textContent = msg;
+
+            const badge = document.getElementById('modal-status-badge');
+            badge.className = 'badge';
+            if (status === 'ok') {
+                badge.classList.add('bg-success');
+                badge.textContent = 'Operational (OK)';
+            } else if (status === 'not_found') {
+                badge.classList.add('bg-danger');
+                badge.textContent = 'Not Found';
+            } else if (status === 'error') {
+                badge.classList.add('bg-warning', 'text-dark');
+                badge.textContent = 'Error';
+            } else {
+                badge.classList.add('bg-secondary');
+                badge.textContent = status || 'Skipped';
+            }
+
+            errorModal.show();
+        });
+    });
+
+    const btn = document.getElementById('runHealthCheck');
+    const progress = document.getElementById('progress-section');
+    const checkboxes = document.querySelectorAll('.model-checkbox');
+    const selectAllBtn = document.getElementById('selectAllModels');
+    const providerFilter = document.getElementById('providerFilter');
+
+    // Handle "Select All" toggle
+    selectAllBtn.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        if (this.checked) providerFilter.value = 'all';
+    });
+
+    // Handle "Provider Filter" change
+    providerFilter.addEventListener('change', function() {
+        const selectedProvider = this.value;
+        checkboxes.forEach(cb => {
+            if (selectedProvider === 'all') {
+                cb.checked = true;
+            } else {
+                cb.checked = (cb.getAttribute('data-provider') === selectedProvider);
+            }
+        });
+        selectAllBtn.checked = (selectedProvider === 'all');
+    });
+
+    // Checkbox manual toggle logic for selectAll state
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const allChecked = Array.from(checkboxes).every(c => c.checked);
+            selectAllBtn.checked = allChecked;
+            if (!allChecked && providerFilter.value !== 'all') {
+                providerFilter.value = 'all'; // Reset filter when manual custom selection
+            }
+        });
+    });
+
+    btn.addEventListener('click', async function() {
+        const selectedIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+        if (selectedIds.length === 0) {
+            alert('Please select at least one model to check.');
+            return;
+        }
+
+        btn.disabled = true;
+        progress.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/models/health/run', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model_ids: selectedIds })
+            });
+            if (response.ok) {
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                alert('Health check failed - see server logs');
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            progress.classList.add('d-none');
+        }
+    });
+
+    // Reset Health Checks
+    document.getElementById('confirmResetHealthBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('confirmResetHealthBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Resetting...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/models/health/reset', { method: 'POST' });
+            if (response.ok) {
+                location.reload();
+            } else {
+                const data = await response.json();
+                alert('Failed to reset health checks: ' + data.error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            alert('Error resetting health checks.');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}

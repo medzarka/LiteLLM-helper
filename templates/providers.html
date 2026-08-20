@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <div>
+        <h1 class="h2 mb-1"><i class="bi bi-hdd-network text-primary me-2"></i>AI Providers</h1>
+        <p class="text-muted mb-0">Manage AI LLM providers, endpoint configurations, and descriptive documentation.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProviderModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Provider
+    </button>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 15%;">Name</th>
+                        <th style="width: 15%;">Type</th>
+                        <th style="width: 20%;">API Base URL</th>
+                        <th style="width: 25%;">Description (Markdown)</th>
+                        <th style="width: 12%;">Resources</th>
+                        <th style="width: 13%;" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="providers-list">
+                    {% for provider in providers %}
+                    <tr data-provider-id="{{ provider.id }}">
+                        <td>
+                            <span class="fw-bold fs-6">{{ provider.name }}</span>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ provider.provider_type }}</span></td>
+                        <td><code>{{ provider.api_base or 'Default' }}</code></td>
+                        <td>
+                            <div class="provider-markdown-content text-break"
+                                data-markdown="{{ provider.description or '' }}">
+                                {% if not provider.description %}
+                                <span class="text-muted italic small">No description provided</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <a href="{{ url_for('keys_provider_redirect', provider_name=provider.name) }}"
+                                    class="btn btn-xs btn-outline-primary py-0 px-2 text-start">
+                                    <i class="bi bi-key me-1"></i>Keys ({{ provider.key_count }})
+                                </a>
+                                <a href="{{ url_for('models_provider_redirect', provider_name=provider.name) }}"
+                                    class="btn btn-xs btn-outline-success py-0 px-2 text-start">
+                                    <i class="bi bi-cpu me-1"></i>Models ({{ provider.model_count }})
+                                </a>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary me-1 edit-provider" data-bs-toggle="modal"
+                                data-bs-target="#editProviderModal" data-provider='{{ provider|tojson }}'>
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-provider"
+                                data-provider='{{ provider|tojson }}'>
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Provider Modal -->
+<div class="modal fade" id="addProviderModal" tabindex="-1" aria-labelledby="addProviderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="add-provider-form">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addProviderModalLabel"><i class="bi bi-plus-circle me-2"></i>Add New
+                        Provider</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="providerName" class="form-label fw-semibold">Provider Name *</label>
+                        <input type="text" class="form-control" id="providerName" name="name" required>
+                        <div class="form-text">e.g., groq-pro, mistral-main</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="providerType" class="form-label fw-semibold">Provider Type *</label>
+                        <select class="form-control" id="providerType" name="provider_type" required>
+                            <option value="">Select Provider Type...</option>
+                            {% for p in litellm_providers|sort %}
+                            <option value="{{ p }}">{{ p }}</option>
+                            {% endfor %}
+                            <option value="custom">custom</option>
+                        </select>
+                        <div class="form-text">Select the underlying platform.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="providerApiBase" class="form-label fw-semibold">API Base URL (Optional)</label>
+                        <input type="url" class="form-control" id="providerApiBase" name="api_base"
+                            placeholder="https://api.example.com/v1">
+                        <div class="form-text">Custom API endpoint base URL if applicable.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="providerDescription" class="form-label fw-semibold">Description (Markdown
+                            Supported)</label>
+                        <textarea class="form-control font-monospace" id="providerDescription" name="description"
+                            rows="4"
+                            placeholder="Enter provider documentation, limits, notes (supports **Markdown**)..."></textarea>
+                        <div class="form-text">Supports markdown formatting (headers, bold, lists, links).</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Add
+                        Provider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Provider Modal -->
+<div class="modal fade" id="editProviderModal" tabindex="-1" aria-labelledby="editProviderModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="edit-provider-form">
+                <input type="hidden" id="edit-provider-id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editProviderModalLabel"><i class="bi bi-pencil me-2"></i>Edit Provider
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-providerName" class="form-label fw-semibold">Provider Name *</label>
+                        <input type="text" class="form-control" id="edit-providerName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-providerType" class="form-label fw-semibold">Provider Type *</label>
+                        <select class="form-control" id="edit-providerType" name="provider_type" required>
+                            {% for p in litellm_providers|sort %}
+                            <option value="{{ p }}">{{ p }}</option>
+                            {% endfor %}
+                            <option value="custom">custom</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-providerApiBase" class="form-label fw-semibold">API Base URL</label>
+                        <input type="url" class="form-control" id="edit-providerApiBase" name="api_base">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-providerDescription" class="form-label fw-semibold">Description (Markdown
+                            Supported)</label>
+                        <textarea class="form-control font-monospace" id="edit-providerDescription" name="description"
+                            rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save
+                        Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-delete-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="errorModalLabel">Error</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="error-message" class="text-danger"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Render Markdown for provider descriptions
+        document.querySelectorAll('.provider-markdown-content').forEach(el => {
+            const rawMarkdown = el.getAttribute('data-markdown');
+            if (rawMarkdown && rawMarkdown.trim() !== '') {
+                try {
+                    el.innerHTML = marked.parse(rawMarkdown);
+                } catch (e) {
+                    el.textContent = rawMarkdown;
+                }
+            }
+        });
+
+        // Add provider form submission
+        document.getElementById('add-provider-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const response = await fetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    const error = await response.json();
+                    showErrorModal('Error adding provider: ' + error.error);
+                }
+            } catch (error) {
+                showErrorModal('Network error: ' + error.message);
+            }
+        });
+
+        // Edit provider form submission
+        document.getElementById('edit-provider-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+
+            const providerId = document.getElementById('edit-provider-id').value;
+
+            try {
+                const response = await fetch(`/api/providers/${providerId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    const error = await response.json();
+                    showErrorModal('Error updating provider: ' + error.error);
+                }
+            } catch (error) {
+                showErrorModal('Network error: ' + error.message);
+            }
+        });
+
+        // Delete provider with confirmation
+        document.querySelectorAll('.delete-provider').forEach(button => {
+            button.addEventListener('click', async function () {
+                const provider = JSON.parse(this.getAttribute('data-provider'));
+
+                const confirmModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+                document.getElementById('confirm-delete-message').textContent =
+                    `Are you sure you want to delete provider "${provider.name}"? All associated keys and models will be permanently deleted.`;
+                document.getElementById('confirm-delete-btn').onclick = async function () {
+                    try {
+                        const response = await fetch(`/api/providers/${provider.id}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            location.reload();
+                        } else {
+                            const error = await response.json();
+                            showErrorModal('Error deleting provider: ' + error.error);
+                        }
+                    } catch (error) {
+                        showErrorModal('Network error: ' + error.message);
+                    }
+                    confirmModal.hide();
+                };
+                confirmModal.show();
+            });
+        });
+
+        // Populate edit modal
+        document.querySelectorAll('.edit-provider').forEach(button => {
+            button.addEventListener('click', function () {
+                const provider = JSON.parse(this.getAttribute('data-provider'));
+                document.getElementById('edit-provider-id').value = provider.id;
+                document.getElementById('edit-providerName').value = provider.name;
+                document.getElementById('edit-providerType').value = provider.provider_type || '';
+                document.getElementById('edit-providerApiBase').value = provider.api_base || '';
+                document.getElementById('edit-providerDescription').value = provider.description || '';
+            });
+        });
+
+        // Auto-fill API Base URL for common providers
+        const providerBaseUrlMap = {
+            'openai': 'https://api.openai.com/v1',
+            'openrouter': 'https://openrouter.ai/api/v1',
+            'ollama': 'http://localhost:11434',
+            'mistral': 'https://api.mistral.ai/v1',
+            'groq': 'https://api.groq.com/openai/v1',
+            'anthropic': 'https://api.anthropic.com/v1',
+            'cohere': 'https://api.cohere.ai/v1',
+            'cerebras': 'https://api.cerebras.ai/v1',
+            'together_ai': 'https://api.together.xyz/v1',
+            'google': 'https://generativelanguage.googleapis.com',
+            'vertex_ai': 'https://us-central1-aiplatform.googleapis.com/v1',
+            'deepseek': 'https://api.deepseek.com/v1',
+            'xai': 'https://api.x.ai/v1'
+        };
+
+        function setupBaseUrlAutoFill(selectId, inputId) {
+            const selectEl = document.getElementById(selectId);
+            const inputEl = document.getElementById(inputId);
+            if (selectEl && inputEl) {
+                selectEl.addEventListener('change', function() {
+                    if (inputEl.value.trim() === '') {
+                        const selectedType = selectEl.value;
+                        if (providerBaseUrlMap[selectedType]) {
+                            inputEl.value = providerBaseUrlMap[selectedType];
+                        }
+                    }
+                });
+            }
+        }
+
+        setupBaseUrlAutoFill('providerType', 'providerApiBase');
+        setupBaseUrlAutoFill('edit-providerType', 'edit-providerApiBase');
+    });
+
+    function showErrorModal(message) {
+        document.getElementById('error-message').textContent = message;
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        errorModal.show();
+    }
+</script>
+{% endblock %}

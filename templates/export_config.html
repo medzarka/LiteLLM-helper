@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3">
+    <h1 class="h2">Export LiteLLM Configuration</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold" id="export-tab" data-bs-toggle="tab" data-bs-target="#export-pane" type="button" role="tab" aria-controls="export-pane" aria-selected="true">
+            <i class="bi bi-cloud-upload me-2"></i>Live Export & Sync
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold" id="versions-tab" data-bs-toggle="tab" data-bs-target="#versions-pane" type="button" role="tab" aria-controls="versions-pane" aria-selected="false">
+            <i class="bi bi-clock-history me-2"></i>Configuration Versions
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="configTabsContent">
+    <!-- EXPORT PANE -->
+    <div class="tab-pane fade show active" id="export-pane" role="tabpanel" aria-labelledby="export-tab">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Export Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="export-form">
+                            <div class="mb-3">
+                                <label for="exportFormat" class="form-label">Export Format</label>
+                                <select class="form-select" id="exportFormat" name="format">
+                                    <option value="yaml" selected>YAML (Recommended)</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label">
+                                    <input type="checkbox" class="form-check-input" id="includeComments" name="include_comments" checked>
+                                    Include Comments in Export
+                                </label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label fw-semibold">
+                                    <input type="checkbox" class="form-check-input" id="includeAggregations" name="include_aggregations" checked>
+                                    Include Aggregation rules (merged model pool names)
+                                </label>
+                                <div class="form-text">When unchecked, models are exported individually under their provider-specific names without merging into aggregated pools.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label fw-semibold">
+                                    <input type="checkbox" class="form-check-input" id="includeFallbacks" name="include_fallbacks" checked>
+                                    Include Fallback rules
+                                </label>
+                                <div class="form-text">Includes primary-to-secondary model fallback routing rules in the exported configuration.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label" id="includeIndividualWrapper">
+                                    <input type="checkbox" class="form-check-input" id="includeIndividual" name="include_individual">
+                                    Also export individual provider models (besides aggregated)
+                                </label>
+                                <div class="form-text">Available only when Aggregation rules are enabled. Emits provider-specific model aliases alongside shared pool aliases.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label">
+                                    <input type="checkbox" class="form-check-input" id="excludeUnhealthy" name="exclude_unhealthy">
+                                    Exclude dead / unhealthy model endpoints
+                                </label>
+                                <div class="form-text">Filters out models whose last health check status was not_found (404) or error.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label">
+                                    <input type="checkbox" class="form-check-input" id="includeCache" name="include_cache">
+                                    Enable Caching (In-Memory / Redis)
+                                </label>
+                                <div class="form-text">Caches exact queries to drastically save free-tier tokens.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check-label">
+                                    <input type="checkbox" class="form-check-input" id="includeHealthChecks" name="include_health_checks">
+                                    Enable background health checks
+                                </label>
+                                <div class="form-text">Health checks may consume rate limits. Uncheck to avoid this.</div>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-success" id="syncLiveBtn">
+                                    <i class="bi bi-cloud-upload me-2"></i> Sync to Live LiteLLM
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-download me-2"></i> Generate Config
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="previewBtn">
+                                    <i class="bi bi-eye me-2"></i> Preview Config
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Export Preview</h5>
+                    </div>
+                    <div class="card-body" id="exportPreview">
+                        <div class="text-center py-4">
+                            <i class="bi bi-file-earmark-text fs-1 text-muted mb-3"></i>
+                            <p class="text-muted">Click "Preview Config" to see the generated configuration</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4" id="downloadSection" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Download Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-4">The configuration has been generated and is ready for download:</p>
+                    <div class="d-grid gap-2">
+                        <a href="#" id="downloadLink" class="btn btn-success">
+                            <i class="bi bi-download me-2"></i> Download Config File
+                        </a>
+                        <button class="btn btn-outline-secondary" id="copyBtn">
+                            <i class="bi bi-clipboard me-2"></i> Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- VERSIONS PANE -->
+    <div class="tab-pane fade" id="versions-pane" role="tabpanel" aria-labelledby="versions-tab">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Saved Versions</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if versions %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Saved At</th>
+                                        <th>Contents</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for v in versions %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold">{{ v.name }}</div>
+                                            {% if v.description %}
+                                            <small class="text-muted">{{ v.description }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td><small class="text-muted">{{ v.captured_at }}</small></td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ v.provider_count }} Providers</span>
+                                            <span class="badge bg-secondary">{{ v.model_count }} Models</span>
+                                            <span class="badge bg-secondary">{{ v.key_count }} Keys</span>
+                                        </td>
+                                        <td>
+                                            <form method="POST" action="{{ url_for('restore_version', file=v.file) }}" class="d-inline"
+                                                  onsubmit="return confirm('Restore version \u201c{{ v.name }}\u201d? This replaces the current providers, models, keys, aggregations and key-rotation settings.');">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                </button>
+                                            </form>
+                                            <form method="POST" action="{{ url_for('delete_version_route', file=v.file) }}" class="d-inline"
+                                                  onsubmit="return confirm('Delete version \u201c{{ v.name }}\u201d? This cannot be undone.');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-clock-history fs-1 text-muted mb-3"></i>
+                            <p class="text-muted">No versions saved yet. Use the form on the right to snapshot the current configuration.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Save Current State</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">
+                            A version captures every provider, model, API key, aggregation and key-rotation
+                            setting. Restore it later to roll back a batch of changes.
+                        </p>
+                        <form method="POST" action="{{ url_for('create_version') }}">
+                            <div class="mb-3">
+                                <label for="versionName" class="form-label">Version Name</label>
+                                <input type="text" class="form-control" id="versionName" name="name"
+                                       placeholder="e.g. before-rate-limit-bump" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="versionDesc" class="form-label">Description (optional)</label>
+                                <input type="text" class="form-control" id="versionDesc" name="description"
+                                       placeholder="What changed in this version?">
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save me-2"></i> Save Version
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalLabel">Configuration Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Format:</label>
+                    <span id="previewFormat" class="badge bg-secondary"></span>
+                </div>
+                <div class="border rounded p-3" style="font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 60vh; overflow-y: auto;">
+                    <pre id="previewContent" class="mb-0"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="downloadFromPreview">
+                    <i class="bi bi-download me-2"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+
+    const includeAggregations = document.getElementById('includeAggregations');
+    const includeIndividual = document.getElementById('includeIndividual');
+
+    function updateIndividualState() {
+        if (!includeAggregations.checked) {
+            includeIndividual.checked = false;
+            includeIndividual.disabled = true;
+        } else {
+            includeIndividual.disabled = false;
+        }
+    }
+
+    if (includeAggregations && includeIndividual) {
+        includeAggregations.addEventListener('change', updateIndividualState);
+        updateIndividualState();
+    }
+
+    function prepareParams(formEl) {
+        const formData = new FormData(formEl);
+        ['include_health_checks', 'include_aggregations', 'include_fallbacks', 'include_cache'].forEach(field => {
+            if (!formData.has(field)) {
+                formData.append(field, 'false');
+            }
+        });
+        return new URLSearchParams(formData);
+    }
+
+    // Preview config
+    document.getElementById('previewBtn').addEventListener('click', async function() {
+        const params = prepareParams(document.getElementById('export-form'));
+
+        try {
+            const response = await fetch(`/export/preview?${params.toString()}`, {
+                method: 'GET'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('previewFormat').textContent = data.format.toUpperCase();
+                document.getElementById('previewContent').textContent = data.content;
+                document.getElementById('downloadFromPreview').onclick = () => {
+                    const blob = new Blob([data.content], {type: 'text/plain'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `litellm-config.${data.format}`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
+                previewModal.show();
+            } else {
+                const error = await response.json();
+                alert('Error generating preview: ' + error.error);
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        }
+    });
+
+    // Export and download
+    document.getElementById('export-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const params = prepareParams(this);
+        const format = params.get('format') || 'yaml';
+
+        try {
+            const response = await fetch(`/export/generate?${params.toString()}`, {
+                method: 'GET'
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const filename = `litellm-config.${format}`;
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                // Show download section (reuses the same blob URL)
+                document.getElementById('downloadSection').style.display = 'block';
+                const downloadLink = document.getElementById('downloadLink');
+                downloadLink.href = url;
+                downloadLink.onclick = function() {
+                    setTimeout(() => window.URL.revokeObjectURL(this.href), 30000);
+                };
+                // Revoke the object URL after a delay so both downloads work
+                setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+            } else {
+                const error = await response.json();
+                alert('Error generating config: ' + (error.error || 'failed'));
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        }
+    });
+
+    // Copy to clipboard
+    document.getElementById('copyBtn').addEventListener('click', async function() {
+        const downloadLink = document.getElementById('downloadLink');
+        alert('Copy functionality would be implemented here - in a real app, this would copy the config to clipboard');
+    });
+
+    // Sync to Live LiteLLM
+    document.getElementById('syncLiveBtn').addEventListener('click', async function() {
+        const params = prepareParams(document.getElementById('export-form'));
+        
+        const originalText = this.innerHTML;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Syncing...';
+        this.disabled = true;
+
+        try {
+            const response = await fetch(`/export/sync-live?${params.toString()}`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                let msg = `Successfully synced to shared volume (${data.path}).`;
+                if (data.litellm_health === 'Healthy') {
+                    msg += ' LiteLLM proxy is Healthy and received the update!';
+                } else {
+                    msg += ' (Note: Could not verify LiteLLM health - is the container running?)';
+                }
+                alert(msg);
+            } else {
+                alert('Error syncing: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Network error: ' + error.message);
+        } finally {
+            this.innerHTML = originalText;
+            this.disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}

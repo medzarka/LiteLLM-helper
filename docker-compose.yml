@@ -1,0 +1,238 @@
+services:
+  # ========================================================
+  # INITIALIZATION SERVICE (Automated Host Storage Setup)
+  # ========================================================
+  init-volumes:
+    image: alpine:latest
+    container_name: litellm_init_volumes
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo ">>> [Init] Creating storage directories under /data..."
+        mkdir -p /data/litellm-helper /data/litellm /data/redis_data /data/qdrant /data/open-webui
+
+        echo ">>> [Init] Setting permissions..."
+        chmod -R 775 /data
+
+        # Ensure default empty LiteLLM config exists if not mounted yet
+        if [ ! -f /data/litellm/config.yaml ]; then
+          echo "model_list: []" > /data/litellm/config.yaml
+          chmod 664 /data/litellm/config.yaml
+        fi
+
+        echo ">>> [Init] LiteLLM directories initialized successfully!"
+
+  # ========================================================
+  # LITELLM HELPER / CONTROL PLANE
+  # ========================================================
+  litellm-helper:
+    build: .
+    container_name: litellm-helper
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "${LITELLM_HELPER_PORT:-5001}:${LITELLM_HELPER_PORT:-5001}"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}/litellm-helper:/app/data
+      - ${WORKDIR:-/srv/data/ai-ui}/litellm:/app/shared
+    environment:
+      - PORT=${LITELLM_HELPER_PORT:-5001}
+      - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_TO=${EMAIL_TO}
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+    networks:
+      - shared_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================
+  # REDIS CACHE (For LiteLLM Usage-Based Routing & Cache)
+  # ========================================================
+  litellm-redis:
+    image: redis:alpine
+    container_name: litellm-redis
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}/redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+    networks:
+      - shared_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================
+  # LITELLM GATEWAY/PROXY (Stateless Mode)
+  # ========================================================
+  litellm:
+    build: 
+      context: .
+      dockerfile: Dockerfile.litellm
+    container_name: litellm
+    platform: linux/arm64
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "4000:4000"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}/litellm/config.yaml:/app/config.yaml
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+      litellm-redis:
+        condition: service_started
+    environment:
+      - LITELLM_TIMEOUT=${LITELLM_TIMEOUT:-600}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - REDIS_HOST=litellm-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - SERVER_TIMEOUT=${SERVER_TIMEOUT:-600}
+      - LITELLM_WORKERS=${LITELLM_WORKERS:-4}
+      - HF_TOKEN=${HF_TOKEN}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-600}
+      - GENERIC_LOGGER_ENDPOINT=http://litellm-helper:${LITELLM_HELPER_PORT:-5001}/api/usage/webhook?token=${LITELLM_HELPER_PASSWORD}
+    command: [
+      "--config", "/app/config.yaml",
+      "--port", "4000",
+      "--reload"
+    ]
+    networks:
+      - shared_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================
+  # QDRANT VECTOR DATABASE (For Open-WebUI RAG)
+  # ========================================================
+  qdrant:
+    image: qdrant/qdrant:v1.18.0
+    container_name: qdrant
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}/qdrant:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5s bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - shared_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================
+  # OPEN-WEBUI CHAT INTERFACE
+  # ========================================================
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "${OPEN_WEBUI_PORT:-3030}:8080"
+    volumes:
+      - ${WORKDIR:-/srv/data/ai-ui}/open-webui:/app/backend/data
+    environment:
+      # --- 1. UI Customization ---
+      - WEBUI_NAME=${WEBUI_NAME:-Bluewave AI Hub}
+      - WEBUI_BRAND=${WEBUI_BRAND:-Bluewave AI Hub}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
+      - BYPASS_MODEL_ACCESS_CONTROL=true
+      - WEBUI_WORKERS=${WEBUI_WORKERS:-4}
+
+      # --- 2. LLM Chat Models ---
+      - OPENAI_API_BASE_URLS=http://litellm:4000/v1
+      - OPENAI_API_KEYS=${LITELLM_MASTER_KEY}
+      
+      # --- 3. Infinity Embeddings & RAG Engine ---
+      - RAG_EMBEDDING_ENGINE=openai
+      - RAG_OPENAI_API_BASE_URL=http://${INFINITY_IP}:${INFINITY_PORT:-9999}/v1
+      - RAG_OPENAI_API_KEY=${INFINITY_API_KEY}
+      - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
+
+      # --- 4. SearXNG Web Search Integration ---
+      - ENABLE_RAG_WEB_SEARCH=True
+      - RAG_WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_SEARCH_URL=http://${SEARXNG_IP}:${SEARXNG_PORT:-8080}/search?q=<query>
+      - BYPASS_WEB_SEARCH_WEB_LOADER=True
+
+      # --- 5. Docling Document Parsing & Vision Extraction ---
+      - RAG_FILE_MAX_SIZE=100
+      - CONTENT_EXTRACTION_ENGINE=docling
+      - DOCLING_SERVER_URL=http://${DOCLING_IP}:${DOCLING_PORT:-5501}
+      - DOCLING_PARAMS={"include_images":true,"do_picture_description":true,"picture_description_options":{"engine":"api","url":"http://litellm:4000/v1/chat/completions","api_key":"${LITELLM_MASTER_KEY}","model":"google-gemini-3.1-flash-lite","prompt":"Analyze this image, chart, map, or diagram. Extract the axis labels, numerical trends, visual data structures, and provide a clear description for an academic knowledge base."}}
+
+      # Timeouts
+      - HTTP_TIMEOUT=1800
+      - DOCLING_TIMEOUT=1800
+      - AIOHTTP_TIMEOUT=1800
+      - AUDIO_TTS_ENGINE=web
+      - AUDIO_STT_ENGINE=web
+
+      # --- 6. Vector Database integration via Qdrant ---
+      - VECTOR_DB=qdrant
+      - QDRANT_URI=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_started
+      qdrant:
+        condition: service_healthy
+    networks:
+      - shared_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  shared_net:
+    name: ${SHARED_NETWORK:-shared_net}
+    external: true

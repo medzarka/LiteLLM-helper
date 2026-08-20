@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-6">
+        <h2 class="mb-0 fw-bold"><i class="bi bi-speedometer2 text-primary me-2"></i>Keys Monitor</h2>
+        <p class="text-muted mt-1">Real-time usage metrics and rate limits per provider</p>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <label for="providerSelect" class="form-label fw-bold">Select Provider</label>
+                <select id="providerSelect" class="form-select form-select-lg shadow-sm" onchange="fetchModels()">
+                    <option value="" selected disabled>-- Choose a provider --</option>
+                    {% for p in providers %}
+                    <option value="{{ p.name }}">{{ p.name }} ({{ p.provider_type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="modelSelect" class="form-label fw-bold">Select Model</label>
+                <select id="modelSelect" class="form-select form-select-lg shadow-sm" onchange="fetchKeysUsage()"
+                    disabled>
+                    <option value="" selected disabled>-- Select a provider first --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="sortSelect" class="form-label fw-bold">Sort By</label>
+                <select id="sortSelect" class="form-select form-select-lg shadow-sm" onchange="renderKeys()">
+                    <option value="rpm_desc" selected>Highest RPM Usage</option>
+                    <option value="rpm_asc">Lowest RPM Usage</option>
+                    <option value="rpd_desc">Highest RPD Usage</option>
+                    <option value="rpd_asc">Lowest RPD Usage</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end justify-content-end">
+                <button class="btn btn-outline-primary" id="refreshBtn" onclick="fetchKeysUsage()" disabled>
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="summaryCard" class="card shadow-sm mb-4 d-none" style="border-left: 4px solid #38bdf8;">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Provider Summary</h5>
+            <span id="scopeBadge" class="badge bg-info text-dark">Scope: Account-Wide Pool</span>
+        </div>
+        
+        <!-- Request Metrics -->
+        <h6 class="text-uppercase text-muted fw-bold small mb-2 border-bottom pb-1">Request Limits</h6>
+        <div class="row text-center mb-3">
+            <div class="col-6 col-md-3 mb-2 mb-md-0">
+                <div class="text-muted small fw-semibold">Total Keys</div>
+                <div class="fs-4 fw-bold text-dark" id="sumTotalKeys">0</div>
+            </div>
+            <div class="col-6 col-md-3 mb-2 mb-md-0">
+                <div class="text-muted small fw-semibold">Remaining RPM</div>
+                <div class="fs-5 fw-bold text-success" id="sumRemainingRpm">0</div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-muted small fw-semibold">Remaining RPD</div>
+                <div class="fs-5 fw-bold text-success" id="sumRemainingRpd">0</div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-muted small fw-semibold">Remaining / Month</div>
+                <div class="fs-5 fw-bold text-success" id="sumRemainingMonth">0</div>
+            </div>
+        </div>
+
+        <!-- Token Metrics -->
+        <h6 class="text-uppercase text-muted fw-bold small mb-2 border-bottom pb-1">Token Limits</h6>
+        <div class="row text-center">
+            <div class="col-6 col-md-4 mb-2 mb-md-0">
+                <div class="text-muted small fw-semibold">Remaining TPM</div>
+                <div class="fs-5 fw-bold text-primary" id="sumRemainingTpm">0</div>
+            </div>
+            <div class="col-6 col-md-4 mb-2 mb-md-0">
+                <div class="text-muted small fw-semibold">Remaining TPD</div>
+                <div class="fs-5 fw-bold text-primary" id="sumRemainingTpd">0</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="text-muted small fw-semibold">Remaining Tokens / Month</div>
+                <div class="fs-5 fw-bold text-primary" id="sumRemainingMonthTokens">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="loadingIndicator" class="text-center my-5 d-none">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3 text-muted">Fetching live usage data from Redis...</p>
+</div>
+
+<div id="noDataMessage" class="alert alert-info d-none shadow-sm">
+    <i class="bi bi-info-circle me-2"></i> Please select a provider to view key usage.
+</div>
+
+<div id="errorIndicator" class="alert alert-danger d-none shadow-sm">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> <span id="errorMessage">An error occurred while fetching data.</span>
+</div>
+
+<div id="keysGrid" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+    <!-- Key cards will be injected here via JavaScript -->
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!document.getElementById("providerSelect").value) {
+            document.getElementById("noDataMessage").classList.remove("d-none");
+        }
+    });
+
+    async function fetchModels() {
+        const providerName = document.getElementById('providerSelect').value;
+        const modelSelect = document.getElementById('modelSelect');
+        const grid = document.getElementById('keysGrid');
+
+        if (!providerName) return;
+
+        grid.innerHTML = '';
+        document.getElementById('summaryCard').classList.add('d-none');
+        document.getElementById('noDataMessage').classList.add('d-none');
+        modelSelect.innerHTML = '<option value="" selected disabled>Loading models...</option>';
+        modelSelect.disabled = true;
+        document.getElementById('refreshBtn').disabled = true;
+
+        try {
+            const response = await fetch(`/api/providers/${encodeURIComponent(providerName)}/models`);
+            if (!response.ok) throw new Error("Failed to fetch models");
+            const models = await response.json();
+
+            modelSelect.innerHTML = '<option value="" selected disabled>-- Choose a model --</option>';
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                modelSelect.appendChild(option);
+            });
+            modelSelect.disabled = false;
+        } catch (err) {
+            modelSelect.innerHTML = '<option value="" selected disabled>Error loading models</option>';
+            document.getElementById('errorIndicator').classList.remove('d-none');
+            document.getElementById('errorMessage').textContent = err.message;
+        }
+    }
+
+    async function fetchKeysUsage() {
+        const providerName = document.getElementById('providerSelect').value;
+        const modelId = document.getElementById('modelSelect').value;
+        const grid = document.getElementById('keysGrid');
+        const loading = document.getElementById('loadingIndicator');
+        const noData = document.getElementById('noDataMessage');
+        const error = document.getElementById('errorIndicator');
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        if (!providerName || !modelId) return;
+
+        grid.innerHTML = '';
+        loading.classList.remove('d-none');
+        noData.classList.add('d-none');
+        error.classList.add('d-none');
+        document.getElementById('summaryCard').classList.add('d-none');
+        refreshBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/providers/${encodeURIComponent(providerName)}/keys/usage?model_id=${encodeURIComponent(modelId)}`);
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            window.currentKeysData = await response.json();
+
+            loading.classList.add('d-none');
+            refreshBtn.disabled = false;
+
+            renderKeys();
+
+        } catch (err) {
+            loading.classList.add('d-none');
+            error.classList.remove('d-none');
+            document.getElementById('errorMessage').textContent = err.message;
+            refreshBtn.disabled = false;
+        }
+    }
+
+    function renderKeys() {
+        if (!window.currentKeysData) return;
+
+        let data = [...window.currentKeysData];
+        const grid = document.getElementById('keysGrid');
+        grid.innerHTML = '';
+
+        if (data.length === 0) {
+            grid.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-warning shadow-sm">
+                        <i class="bi bi-exclamation-circle me-2"></i> No keys found for this provider. Add keys in the API Keys section.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const sortValue = document.getElementById('sortSelect').value;
+        data.sort((a, b) => {
+            let aUsage = 0, bUsage = 0;
+            if (sortValue.startsWith('rpm')) {
+                aUsage = a.rpm_limit > 0 ? (a.current_rpm / a.rpm_limit) : 0;
+                bUsage = b.rpm_limit > 0 ? (b.current_rpm / b.rpm_limit) : 0;
+            } else if (sortValue.startsWith('rpd')) {
+                aUsage = a.rpd_limit > 0 ? (a.current_rpd / a.rpd_limit) : 0;
+                bUsage = b.rpd_limit > 0 ? (b.current_rpd / b.rpd_limit) : 0;
+            }
+            return sortValue.endsWith('desc') ? bUsage - aUsage : aUsage - bUsage;
+        });
+
+        let totalKeys = data.length;
+        let sumRemainingRpm = 0;
+        let sumRemainingRpd = 0;
+        let sumRemainingMonth = 0;
+        let hasUnlimitedRpm = false;
+        let hasUnlimitedRpd = false;
+        let hasUnlimitedMonth = false;
+
+        let sumLimitRpm = 0;
+        let sumLimitRpd = 0;
+        let sumLimitMonth = 0;
+
+        let sumRemainingTpm = 0;
+        let sumRemainingTpd = 0;
+        let sumRemainingMonthTokens = 0;
+        let hasUnlimitedTpm = false;
+        let hasUnlimitedTpd = false;
+        let hasUnlimitedMonthTokens = false;
+
+        let sumLimitTpm = 0;
+        let sumLimitTpd = 0;
+        let sumLimitMonthTokens = 0;
+
+        let providerScope = data[0]?.rate_limit_scope || 'cumulative';
+
+        data.forEach(key => {
+            // Requests
+            if (key.rpm_limit > 0) {
+                sumLimitRpm += key.rpm_limit;
+                sumRemainingRpm += Math.max(0, key.rpm_limit - key.current_rpm);
+            } else {
+                hasUnlimitedRpm = true;
+            }
+
+            if (key.rpd_limit > 0) {
+                sumLimitRpd += key.rpd_limit;
+                sumRemainingRpd += Math.max(0, key.rpd_limit - key.current_rpd);
+            } else {
+                hasUnlimitedRpd = true;
+            }
+
+            if (key.rpm_month_limit > 0) {
+                sumLimitMonth += key.rpm_month_limit;
+                sumRemainingMonth += Math.max(0, key.rpm_month_limit - key.current_rpm_month);
+            } else {
+                hasUnlimitedMonth = true;
+            }
+
+            // Tokens
+            if (key.tpm_limit > 0) {
+                sumLimitTpm += key.tpm_limit;
+                sumRemainingTpm += Math.max(0, key.tpm_limit - (key.current_tpm || 0));
+            } else {
+                hasUnlimitedTpm = true;
+            }
+
+            if (key.tpd_limit > 0) {
+                sumLimitTpd += key.tpd_limit;
+                sumRemainingTpd += Math.max(0, key.tpd_limit - (key.current_tpd || 0));
+            } else {
+                hasUnlimitedTpd = true;
+            }
+
+            if (key.tpm_month_limit > 0) {
+                sumLimitMonthTokens += key.tpm_month_limit;
+                sumRemainingMonthTokens += Math.max(0, key.tpm_month_limit - (key.current_tpm_month || 0));
+            } else {
+                hasUnlimitedMonthTokens = true;
+            }
+
+            const calcPercent = (curr, lim) => (lim > 0 ? Math.min(100, Math.round(((curr || 0) / lim) * 100)) : 0);
+            const getBarColor = (pct) => (pct > 80 ? 'bg-danger' : (pct > 50 ? 'bg-warning' : 'bg-success'));
+
+            const rpmPercent = calcPercent(key.current_rpm, key.rpm_limit);
+            const rpdPercent = calcPercent(key.current_rpd, key.rpd_limit);
+            const monthPercent = calcPercent(key.current_rpm_month, key.rpm_month_limit);
+
+            const tpmPercent = calcPercent(key.current_tpm, key.tpm_limit);
+            const tpdPercent = calcPercent(key.current_tpd, key.tpd_limit);
+            const monthTokenPercent = calcPercent(key.current_tpm_month, key.tpm_month_limit);
+
+            // Upstream rate limit badge
+            let upstreamHtml = '';
+            if (key.upstream_rate_limits && Object.keys(key.upstream_rate_limits).length > 0) {
+                const chips = [];
+                for (const [hk, hv] of Object.entries(key.upstream_rate_limits)) {
+                    chips.push(`<span class="badge bg-light text-dark border me-1 mb-1 small">${hk}: <strong>${hv}</strong></span>`);
+                }
+                upstreamHtml = `
+                    <div class="mt-3 pt-2 border-top">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-primary-subtle text-primary me-2"><i class="bi bi-broadcast"></i> Live Provider Sync</span>
+                            <span class="text-muted small">Upstream Headers</span>
+                        </div>
+                        <div class="d-flex flex-wrap">${chips.join('')}</div>
+                    </div>
+                `;
+            }
+
+            const cardHtml = `
+                <div class="col">
+                    <div class="card h-100 shadow-sm border-0" style="transition: transform 0.2s; border-radius: 15px;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="card-title fw-bold mb-0 text-truncate" title="${key.key_name}">
+                                    <i class="bi bi-key-fill text-secondary me-1"></i> ${key.key_name}
+                                </h5>
+                                <div class="d-flex gap-1">
+                                    <span class="badge ${key.is_active ? 'bg-success' : 'bg-secondary'} rounded-pill">
+                                        ${key.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Requests Section -->
+                            <div class="p-2 mb-2 rounded bg-light bg-opacity-50 border">
+                                <span class="fw-bold small text-muted text-uppercase d-block mb-1"><i class="bi bi-arrow-repeat me-1"></i> Requests</span>
+                                
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">RPM</span>
+                                        <span class="fw-bold small">${(key.current_rpm || 0).toLocaleString()} / ${key.rpm_limit > 0 ? key.rpm_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar ${getBarColor(rpmPercent)}" style="width: ${rpmPercent}%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">RPD</span>
+                                        <span class="fw-bold small">${(key.current_rpd || 0).toLocaleString()} / ${key.rpd_limit > 0 ? key.rpd_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar ${getBarColor(rpdPercent)}" style="width: ${rpdPercent}%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">Monthly Req</span>
+                                        <span class="fw-bold small">${(key.current_rpm_month || 0).toLocaleString()} / ${key.rpm_month_limit > 0 ? key.rpm_month_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar ${getBarColor(monthPercent)}" style="width: ${monthPercent}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tokens Section -->
+                            <div class="p-2 rounded bg-light bg-opacity-50 border">
+                                <span class="fw-bold small text-muted text-uppercase d-block mb-1"><i class="bi bi-cpu me-1"></i> Tokens</span>
+                                
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">TPM</span>
+                                        <span class="fw-bold small">${(key.current_tpm || 0).toLocaleString()} / ${key.tpm_limit > 0 ? key.tpm_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar bg-info" style="width: ${tpmPercent}%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">TPD</span>
+                                        <span class="fw-bold small">${(key.current_tpd || 0).toLocaleString()} / ${key.tpd_limit > 0 ? key.tpd_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar bg-primary" style="width: ${tpdPercent}%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-muted small">Monthly Tokens</span>
+                                        <span class="fw-bold small">${(key.current_tpm_month || 0).toLocaleString()} / ${key.tpm_month_limit > 0 ? key.tpm_month_limit.toLocaleString() : '&infin;'}</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                                        <div class="progress-bar bg-indigo" style="width: ${monthTokenPercent}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            ${upstreamHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+            grid.insertAdjacentHTML('beforeend', cardHtml);
+        });
+
+        // Format helpers
+        const formatSummary = (remaining, total, isUnlimited) => {
+            if (isUnlimited) return '&infin;';
+            const percent = total > 0 ? Math.round((remaining / total) * 100) : 0;
+            return `${remaining.toLocaleString()} / ${total.toLocaleString()} (${percent}%)`;
+        };
+
+        // Update summary card
+        document.getElementById('sumTotalKeys').textContent = totalKeys;
+        document.getElementById('sumRemainingRpm').innerHTML = formatSummary(sumRemainingRpm, sumLimitRpm, hasUnlimitedRpm);
+        document.getElementById('sumRemainingRpd').innerHTML = formatSummary(sumRemainingRpd, sumLimitRpd, hasUnlimitedRpd);
+        document.getElementById('sumRemainingMonth').innerHTML = formatSummary(sumRemainingMonth, sumLimitMonth, hasUnlimitedMonth);
+
+        document.getElementById('sumRemainingTpm').innerHTML = formatSummary(sumRemainingTpm, sumLimitTpm, hasUnlimitedTpm);
+        document.getElementById('sumRemainingTpd').innerHTML = formatSummary(sumRemainingTpd, sumLimitTpd, hasUnlimitedTpd);
+        document.getElementById('sumRemainingMonthTokens').innerHTML = formatSummary(sumRemainingMonthTokens, sumLimitMonthTokens, hasUnlimitedMonthTokens);
+
+        const scopeBadge = document.getElementById('scopeBadge');
+        if (providerScope === 'per_model') {
+            scopeBadge.className = 'badge bg-warning text-dark';
+            scopeBadge.textContent = 'Scope: Per-Model Independent Pool';
+        } else {
+            scopeBadge.className = 'badge bg-info text-dark';
+            scopeBadge.textContent = 'Scope: Account-Wide Cumulative Pool';
+        }
+
+        document.getElementById('summaryCard').classList.remove('d-none');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+FROM ghcr.io/berriai/litellm:main-latest
+# Switch to root to install missing dependencies
+USER root
+# Download get-pip.py using python itself (since apt-get/apk might not be available)
+RUN /app/.venv/bin/python -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')"
+RUN /app/.venv/bin/python get-pip.py
+# Install Pillow directly into their virtual environment
+RUN /app/.venv/bin/pip install Pillow
+# (Removed 'USER app' since the base image doesn't have an 'app' user)

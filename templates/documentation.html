@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <h1 class="h2 mb-0">Documentation</h1>
+    <a href="{{ url_for('providers') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-body p-4" id="documentation-content">
+                <!-- Markdown will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Developer Credentials -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white rounded-top">
+                <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Developer</h5>
+            </div>
+            <div class="card-body text-center bg-light">
+                <div class="mb-3">
+                    <i class="bi bi-person-circle text-primary" style="font-size: 4rem;"></i>
+                </div>
+                <h4 class="fw-bold">Mohamed Zarka</h4>
+
+                <div class="d-flex flex-column gap-2 mt-4 text-start px-3">
+                    <a href="mailto:medzarka@gmail.com"
+                        class="text-decoration-none text-dark d-flex align-items-center">
+                        <i class="bi bi-envelope-fill text-danger fs-5 me-3"></i>
+                        <span>medzarka@gmail.com</span>
+                    </a>
+
+                    <a href="https://github.com/medzarka" target="_blank"
+                        class="text-decoration-none text-dark d-flex align-items-center">
+                        <i class="bi bi-github fs-5 me-3"></i>
+                        <span>@medzarka</span>
+                    </a>
+
+                    <a href="https://github.com/medzarka/LiteLLM-helper" target="_blank"
+                        class="text-decoration-none text-dark d-flex align-items-center">
+                        <i class="bi bi-box-seam-fill text-primary fs-5 me-3"></i>
+                        <span class="text-truncate">LiteLLM-helper Repository</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-secondary text-white rounded-top">
+                <h5 class="mb-0"><i class="bi bi-folder me-2"></i>File Locations</h5>
+            </div>
+            <div class="card-body bg-light">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3">
+                        <code class="fs-6 text-dark fw-bold">litellm_helper.db</code>
+                        <small class="d-block text-muted mt-1">SQLite database (auto-created)</small>
+                    </li>
+                    <li class="mb-3">
+                        <code class="fs-6 text-dark fw-bold">aggregations.json</code>
+                        <small class="d-block text-muted mt-1">Model aggregation config</small>
+                    </li>
+                    <li class="mb-3">
+                        <code class="fs-6 text-dark fw-bold">rotation_settings.json</code>
+                        <small class="d-block text-muted mt-1">Key rotation settings</small>
+                    </li>
+                    <li class="mb-0">
+                        <code class="fs-6 text-dark fw-bold">versions/*.json</code>
+                        <small class="d-block text-muted mt-1">Version snapshots</small>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-header bg-info text-white rounded-top">
+                <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Notifications</h5>
+            </div>
+            <div class="card-body bg-light text-center">
+                <p class="small text-muted mb-3">Manually trigger model updates and usage emails immediately.</p>
+                <button id="forceNotifyBtn" class="btn btn-primary w-100">
+                    <i class="bi bi-send me-1"></i> Force Send Emails
+                </button>
+                <div id="notifyStatus" class="mt-3 text-start small"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Raw Markdown Content Data -->
+<script type="text/markdown" id="raw-markdown-data">
+<div align="center">
+  <h1>LiteLLM Helper UI 🚀</h1>
+  <p><strong>The Ultimate Control Plane for the LiteLLM AI Gateway</strong></p>
+</div>
+
+<br />
+
+LiteLLM Helper v4 is a robust, web-based UI configuration generator and control plane for the LiteLLM Proxy. Stop manually writing complex YAML files! Use the responsive UI to effortlessly manage LLM providers, API keys, load balancing, models, and failover architectures.
+
+## 🎯 App Objectives
+
+LiteLLM Helper is designed to be the ultimate Control Plane for the LiteLLM AI Gateway.
+Its primary objective is to simplify and automate the complex configuration of LiteLLM proxies. Instead of manually editing large YAML files, this app provides a structured UI to manage providers, API keys, routing rules, load balancing, and model capabilities. It ensures the AI stack remains robust, scalable, and easy to maintain by dynamically generating and syncing configurations to the live gateway.
+
+## 🗺️ Interface Guide
+
+Below is a comprehensive enumeration of every interface within the LiteLLM Helper, detailing its objectives, how to use it, and critical tips.
+
+### 1. Providers
+- **Objectives:** Define AI service providers (e.g., OpenAI, Groq, OpenRouter) and manage their base URLs.
+- **Content:** A list of configured providers.
+- **Steps:** Click "Add New Provider", select the type from the dropdown, and optionally set a custom API base URL.
+- **Tips/Hints:** The API Base URL will auto-fill for common providers! 
+- **Errors/Warnings:** Ensure you select the exact LiteLLM provider type. A mismatch will cause LiteLLM to fail routing.
+
+### 2. Emails
+- **Objectives:** Manage organizational email accounts used for registering API keys.
+- **Content:** A list of email addresses categorized by type (e.g., Gmail, Outlook).
+- **Steps:** Click "Add New Email", input the email address, and select its provider type.
+- **Tips/Hints:** Useful for tracking which developer or team owns which API keys to avoid overlapping bans.
+
+### 3. API Keys
+- **Objectives:** Store, assign, and manage multiple API keys across providers and emails.
+- **Content:** Secure vault of API keys linked to specific providers and emails.
+- **Steps:** Click "Add New Key", select the Provider, select the Email, give the key a friendly name, and paste the value.
+- **Tips/Hints:** You can instantly enable or disable a key using the toggle switch. Disabled keys are excluded from the final `config.yaml`.
+- **Errors/Warnings:** LiteLLM will fail to start if it detects malformed keys. Ensure no extra spaces are pasted.
+
+### 4. Models
+- **Objectives:** Configure the specific AI models you intend to route traffic to, including their context windows, capabilities, rate limits, and custom skills.
+- **Content:** Table of active models with RPM/TPM limits, Context window sizes, and inferred skills (like Math, Coding, Vision).
+- **Steps:** Click "Add New Model", select the Provider, define the "Shared Name" (how you refer to it) and the "Actual Model" (what the provider calls it).
+- **Tips/Hints:** We automatically infer skills (like `math`, `vision`, `coding`) based on the model's name and description. Use the "Discover Free Models" or "Inspect Deprecated Models" buttons to bulk-manage models via API!
+- **Errors/Warnings:** Setting rate limits (RPM/TPM) to `0` means unlimited. Be careful with this on paid tiers.
+
+### 5. Aggregated Models
+- **Objectives:** Create shared aliases (e.g., `smart-model`) that route traffic across multiple underlying provider models for load balancing and redundancy.
+- **Content:** A mapping of alias names to multiple backend models.
+- **Steps:** Click "Add Aggregation", name the virtual model, and select all the backend models it should route to.
+- **Tips/Hints:** Use Aggregated Models when you want to **load-balance** across multiple providers simultaneously (e.g., routing `llama3` traffic to both Groq and OpenRouter).
+
+### 6. Fallbacks
+- **Objectives:** Define failover chains so that if a primary model fails, the request is automatically routed to a backup model.
+- **Content:** A mapping of a primary model to an ordered list of fallback models.
+- **Steps:** Click "Add Fallback", select the Primary Model, and then select the Fallback Models in order of priority.
+- **Tips/Hints:** Use Fallbacks when a primary model is strictly preferred, and a secondary is only used if the primary fails (unlike Aggregations, which round-robin traffic).
+- **Errors/Warnings:** Do not create circular fallbacks (A -> B -> A). LiteLLM will throw an error.
+
+### 7. Hermes Agents
+- **Objectives:** Map task-specific virtual models (e.g., `hermes-vision`, `hermes-mcp`) directly to the backend models. 
+- **Content:** A dashboard of specific agentic tasks with recommended models.
+- **Steps:** Select the primary model you want to assign to each Hermes task from the dropdowns and click Save.
+- **Tips/Hints:** This interface allows Hermes to reliably request task-specific models without needing to edit the Hermes configuration. Swap out Hermes models instantly!
+
+### 8. Settings
+- **Objectives:** Configure global rotation strategies and retry limits.
+- **Content:** Settings for Routing Strategy (e.g., simple-shuffle, least-busy), Key Rotation Strategy, Cooldown Times, and Max Retries.
+- **Steps:** Adjust the sliders/dropdowns and click "Save Settings".
+- **Tips/Hints:** `least-busy` is excellent for high-traffic environments, while `simple-shuffle` (Round Robin) is best for general use.
+
+### 9. Export Config
+- **Objectives:** Generate the final `config.yaml` file, sync it live to the LiteLLM Docker container, and manage Configuration Versions (snapshots).
+- **Content:** The raw YAML output, a sync button, and a version history table.
+- **Steps:** Select which modules to include in the export via the checkboxes, review the YAML, and click "Sync to Live LiteLLM".
+- **Tips/Hints:** There is no need to restart LiteLLM! As long as the container is running with `--reload`, it will hot-reload the changes instantly.
+- **Errors/Warnings:** Always create a new Version snapshot before syncing experimental changes, so you can quickly restore if LiteLLM crashes.
+
+### 11. MCP (Model Context Protocol) Server
+- **Objectives:** Allow autonomous agents (like Hermes or Claude Desktop) to connect directly to the LiteLLM Helper via standard MCP protocols. The agent can monitor models, discover new free-tier models, safely delete deprecated ones, and update the Hermes Virtual Model bindings.
+- **Content:** An `mcp_server.py` script that acts as a bridge between the agent and the Helper UI database.
+- **Steps:** 
+  1. Add the MCP server configuration to your agent's config file (e.g., `claude_desktop_config.json`), pointing the `command` to the helper's `venv/bin/python` and `args` to `mcp_server.py`.
+  2. Ensure the `LITELLM_HELPER_PASSWORD` environment variable is set in the agent's config for security.
+- **Tips/Hints:** We recommend instructing your agent to run periodically (e.g., using a cron job) to clean up deprecated models and pull in newly discovered ones. The agent will automatically snapshot the configuration version before making any modifications!
+- **Errors/Warnings:** **Security Warning:** The MCP server operates locally over `stdio`, meaning it does not open network ports. However, because it has database write access, only connect trusted agent environments to this server.
+
+### 12. Keys Monitor
+- **Objectives:** Monitor the daily and monthly API usage of your registered keys per provider.
+- **Content:** Interactive grid displaying rate limit metrics, progress bars, and dynamic summaries.
+- **Steps:** Navigate to the Keys Monitor interface, select a Provider, and optionally select a Model. The view will automatically fetch live usage data from Redis.
+- **Tips/Hints:** Rate limits are displayed contextually. You can sort keys by highest or lowest usage to easily identify which keys are close to hitting their limits.
+
+### 13. Notifications
+- **Objectives:** Receive automated emails about newly discovered free-tier models, deprecated models, and daily summaries of API usage.
+- **Content:** Automated email reports powered by background job schedulers (`APScheduler`).
+- **Steps:** Ensure you have configured the SMTP variables (like `SMTP_SERVER` and `SMTP_PASSWORD`) in your `.env` file. 
+- **Tips/Hints:** If using Gmail, you must use a Google "App Password" rather than your standard account password. The jobs run automatically in the background (Usage runs daily at 11:50 PM, Model Discovery runs Mon/Thu at 9:00 AM).
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const rawMarkdown = document.getElementById('raw-markdown-data').textContent;
+        const container = document.getElementById('documentation-content');
+
+        // Configure marked to use Bootstrap tables
+        const renderer = new marked.Renderer();
+        renderer.table = function (header, body) {
+            return '<div class="table-responsive"><table class="table table-bordered table-striped">' + header + body + '</table></div>';
+        };
+
+        marked.setOptions({
+            renderer: renderer,
+            breaks: true,
+            gfm: true
+        });
+
+        container.innerHTML = marked.parse(rawMarkdown);
+
+        // Add bootstrap styling to generic elements
+        container.querySelectorAll('h2').forEach(el => el.classList.add('h4', 'mt-4', 'mb-3', 'text-primary', 'border-bottom', 'pb-2'));
+        container.querySelectorAll('h3').forEach(el => el.classList.add('h5', 'mt-4', 'mb-3', 'text-secondary'));
+        container.querySelectorAll('ul').forEach(el => el.classList.add('mb-3'));
+        
+        // Force Notify logic
+        const forceNotifyBtn = document.getElementById('forceNotifyBtn');
+        const notifyStatus = document.getElementById('notifyStatus');
+        
+        if (forceNotifyBtn) {
+            forceNotifyBtn.addEventListener('click', async function() {
+                forceNotifyBtn.disabled = true;
+                forceNotifyBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+                notifyStatus.innerHTML = '';
+                
+                try {
+                    const response = await fetch('/api/emails/force-notify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    let statusHtml = '';
+                    
+                    // Models Notification
+                    if (data.models_notification) {
+                        const modelsCls = data.models_notification.success ? 'text-success' : 'text-danger';
+                        const modelsIcon = data.models_notification.success ? 'check-circle' : 'exclamation-circle';
+                        statusHtml += `<div class="mb-2 ${modelsCls}"><i class="bi bi-${modelsIcon} me-1"></i><strong>Models:</strong> ${data.models_notification.message}</div>`;
+                    }
+                    
+                    // Usage Notification
+                    if (data.usage_notification) {
+                        const usageCls = data.usage_notification.success ? 'text-success' : 'text-danger';
+                        const usageIcon = data.usage_notification.success ? 'check-circle' : 'exclamation-circle';
+                        statusHtml += `<div class="${usageCls}"><i class="bi bi-${usageIcon} me-1"></i><strong>Usage:</strong> ${data.usage_notification.message}</div>`;
+                    }
+                    
+                    notifyStatus.innerHTML = statusHtml;
+                } catch (error) {
+                    notifyStatus.innerHTML = `<div class="text-danger"><i class="bi bi-x-circle me-1"></i> Error: ${error.message}</div>`;
+                } finally {
+                    forceNotifyBtn.disabled = false;
+                    forceNotifyBtn.innerHTML = '<i class="bi bi-send me-1"></i> Force Send Emails';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,698 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="mb-1 fw-bold text-dark"><i class="bi bi-envelope-paper me-2 text-primary"></i>Email Accounts</h2>
+        <p class="text-secondary mb-0">Manage your email accounts and generate keys in bulk.</p>
+    </div>
+    <div class="col-auto">
+        <button type="button" class="btn btn-outline-secondary me-2 shadow-sm" data-bs-toggle="modal"
+            data-bs-target="#importCsvModal">
+            <i class="bi bi-filetype-csv me-1"></i> Import CSV
+        </button>
+        <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addEmailModal">
+            <i class="bi bi-plus-lg me-1"></i> Add Email
+        </button>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-primary bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-envelope"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Total Emails</div>
+                    <h3 class="mb-0 fw-bold">{{ emails|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-success bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-key"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Total API Keys</div>
+                    <h3 class="mb-0 fw-bold">{{ emails|sum(attribute='key_count') }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-info bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-microsoft"></i></div>
+                <div>
+                    <div class="text-white-50 fw-semibold text-uppercase small">Outlook / Hotmail</div>
+                    <h3 class="mb-0 fw-bold">{{ emails|selectattr('email_type', 'equalto', 'hotmail')|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 rounded-4 h-100 bg-secondary bg-gradient text-white">
+            <div class="card-body p-3 d-flex align-items-center">
+                <div class="me-3 fs-1"><i class="bi bi-pie-chart"></i></div>
+                <div class="w-100">
+                    <div class="text-white-50 fw-semibold text-uppercase small mb-1">Other Providers</div>
+                    <div class="d-flex justify-content-between small fw-medium">
+                        <span>Gmail: {{ emails|selectattr('email_type', 'equalto', 'gmail')|list|length }}</span>
+                        <span>Yahoo: {{ emails|selectattr('email_type', 'equalto', 'yahoo')|list|length }}</span>
+                        <span>GMX: {{ emails|selectattr('email_type', 'equalto', 'gmx')|list|length }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body p-3 bg-light rounded-4 d-flex gap-3 align-items-center">
+        <div class="fw-semibold text-secondary me-2"><i class="bi bi-funnel"></i> Filters:</div>
+        <div style="width: 200px;">
+            <select class="form-select form-select-sm" id="filterEmailType">
+                <option value="all">All Email Types</option>
+                <option value="gmail">Gmail</option>
+                <option value="gmx">GMX</option>
+                <option value="hotmail">Hotmail / Outlook</option>
+                <option value="mail">Mail.com</option>
+                <option value="yahoo">Yahoo</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <!-- We will filter by text search for simplicity -->
+        <div style="flex-grow: 1;">
+            <input type="text" class="form-control form-control-sm" id="searchEmail"
+                placeholder="Search by email address...">
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="emailsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Email Address</th>
+                        <th>Type</th>
+                        <th>API Keys</th>
+                        <th>Added On</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                    <tr data-email-id="{{ email.id }}" data-email-type="{{ email.email_type }}">
+                        <td class="ps-4 fw-medium text-dark email-text">{{ email.email }}</td>
+                        <td>
+                            <span class="badge bg-secondary">{{ email.email_type }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-info text-dark rounded-pill">{{ email.key_count }}</span>
+                        </td>
+                        <td class="text-muted small">{{ email.created_at[:10] }}</td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-success text-white me-1 manage-keys-btn"
+                                data-email-id="{{ email.id }}" data-email-addr="{{ email.email }}">
+                                <i class="bi bi-key-fill"></i> Manage Keys
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary me-1 edit-email-btn"
+                                data-email='{{ email | tojson }}'>
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-email-btn"
+                                data-email-id="{{ email.id }}" data-email-addr="{{ email.email }}">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="empty-state">
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-envelope-x fs-1 d-block mb-3 text-secondary"></i>
+                            <h5>No email accounts found</h5>
+                            <p>Click "Add Email" to create your first account or "Import CSV" to upload a list.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Email Modal -->
+<div class="modal fade" id="addEmailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">Add Email Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addEmailForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="emailAddr" class="form-label fw-semibold">Email Address *</label>
+                        <input type="email" class="form-control" id="emailAddr" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="emailPassword" class="form-label fw-semibold">Password (Optional)</label>
+                        <input type="text" class="form-control" id="emailPassword" name="password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="emailType" class="form-label fw-semibold">Type</label>
+                        <select class="form-control" id="emailType" name="email_type">
+                            <option value="gmail">Gmail</option>
+                            <option value="gmx">GMX</option>
+                            <option value="hotmail">Hotmail / Outlook</option>
+                            <option value="mail">Mail.com</option>
+                            <option value="yahoo">Yahoo</option>
+                            <option value="other" selected>Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Email Modal -->
+<div class="modal fade" id="editEmailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">Edit Email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editEmailForm">
+                <div class="modal-body">
+                    <input type="hidden" id="edit-email-id" name="id">
+                    <div class="mb-3">
+                        <label for="edit-emailAddr" class="form-label fw-semibold">Email Address *</label>
+                        <input type="email" class="form-control" id="edit-emailAddr" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-emailPassword" class="form-label fw-semibold">Password</label>
+                        <input type="text" class="form-control" id="edit-emailPassword" name="password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-emailType" class="form-label fw-semibold">Type</label>
+                        <select class="form-control" id="edit-emailType" name="email_type">
+                            <option value="gmail">Gmail</option>
+                            <option value="gmx">GMX</option>
+                            <option value="hotmail">Hotmail / Outlook</option>
+                            <option value="mail">Mail.com</option>
+                            <option value="yahoo">Yahoo</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal fade" id="importCsvModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">Import CSV</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="importCsvForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        CSV format: <code>email, password, email_type</code>
+                        <div class="small mt-1 text-muted">
+                            Supported email types: <code>gmail</code>, <code>gmx</code>, <code>hotmail</code>,
+                            <code>mail</code>, <code>yahoo</code>, <code>other</code>.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label fw-semibold">Select CSV File</label>
+                        <input class="form-control" type="file" id="csvFile" accept=".csv" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Keys Modal -->
+<div class="modal fade" id="manageKeysModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">Manage API Keys for <span id="manageKeysEmailAddr"
+                        class="text-primary"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="manage-email-id">
+
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3">Add New Key</h6>
+                                <form id="addKeyForm">
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Provider Name</label>
+                                        <select class="form-select form-select-sm" id="keyProviderName" required>
+                                            <option value="">Select...</option>
+                                            {% for p in providers %}
+                                            <option value="{{ p.name }}">{{ p.name }} ({{ p.provider_type }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">API Key Value</label>
+                                        <input type="text" class="form-control form-control-sm" id="keyValue" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Label (Optional)</label>
+                                        <input type="text" class="form-control form-control-sm" id="keyName"
+                                            placeholder="Default: email">
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-success w-100 text-white"><i
+                                            class="bi bi-plus"></i> Add Key</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm border-0 bg-light mt-3">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3 text-secondary">Missing Providers</h6>
+                                <div id="missingKeysList" class="d-flex flex-wrap gap-2">
+                                    <!-- Populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle" id="emailKeysTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Provider</th>
+                                        <th>Label</th>
+                                        <th>Key Value</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emailKeysBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                            <div id="noKeysAlert" class="alert alert-secondary text-center d-none">
+                                No keys found for this email.
+                            </div>
+                        </div>
+
+                        <!-- Recent Emails Card -->
+                        <div class="card shadow-sm border-0 bg-light mt-4">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="fw-bold mb-0"><i class="bi bi-envelope"></i> Recent Emails (Last 10)</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                        id="fetchRecentEmailsBtn">
+                                        <i class="bi bi-arrow-clockwise"></i> Fetch / Reload
+                                    </button>
+                                </div>
+                                <div id="recentEmailsStatus" class="alert alert-info d-none small"></div>
+                                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                    <table class="table table-sm table-hover align-middle mb-0" id="recentEmailsTable"
+                                        style="display: none;">
+                                        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>From</th>
+                                                <th>Subject</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recentEmailsBody">
+                                            <!-- Populated via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="noRecentEmailsAlert" class="text-center text-muted small py-3">
+                                    Click "Fetch / Reload" to retrieve recent emails.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Filter logic
+    document.getElementById('filterEmailType').addEventListener('change', applyFilters);
+    document.getElementById('searchEmail').addEventListener('input', applyFilters);
+
+    function applyFilters() {
+        const typeFilter = document.getElementById('filterEmailType').value;
+        const searchFilter = document.getElementById('searchEmail').value.toLowerCase();
+
+        document.querySelectorAll('#emailsTable tbody tr:not(.empty-state)').forEach(row => {
+            const rowType = row.getAttribute('data-email-type');
+            const emailText = row.querySelector('.email-text').textContent.toLowerCase();
+
+            let show = true;
+            if (typeFilter !== 'all') {
+                if (typeFilter === 'hotmail' && (rowType === 'hotmail' || rowType === 'outlook' || emailText.includes('@outlook.com') || emailText.includes('@hotmail.com'))) {
+                    // Match
+                } else if (typeFilter === 'gmail' && (rowType === 'gmail' || emailText.includes('@gmail.com'))) {
+                    // Match
+                } else if (typeFilter === 'gmx' && (rowType === 'gmx' || emailText.includes('@gmx.'))) {
+                    // Match
+                } else if (typeFilter === 'mail' && (rowType === 'mail' || emailText.includes('@mail.com'))) {
+                    // Match
+                } else if (typeFilter === 'yahoo' && (rowType === 'yahoo' || emailText.includes('@yahoo.'))) {
+                    // Match
+                } else if (rowType !== typeFilter) {
+                    show = false;
+                }
+            }
+            if (searchFilter && !emailText.includes(searchFilter)) show = false;
+
+            row.style.display = show ? '' : 'none';
+        });
+    }
+
+    function autoSelectEmailType(inputElement, selectElement) {
+        const val = inputElement.value.toLowerCase();
+        if (val.endsWith('@gmail.com')) selectElement.value = 'gmail';
+        else if (val.endsWith('@gmx.com') || val.endsWith('@gmx.net') || val.endsWith('@gmx.de') || val.endsWith('@gmx.fr')) selectElement.value = 'gmx';
+        else if (val.endsWith('@hotmail.com') || val.endsWith('@outlook.com')) selectElement.value = 'hotmail';
+        else if (val.endsWith('@mail.com')) selectElement.value = 'mail';
+        else if (val.includes('@yahoo.')) selectElement.value = 'yahoo';
+    }
+
+    document.getElementById('emailAddr').addEventListener('input', function () {
+        autoSelectEmailType(this, document.getElementById('emailType'));
+    });
+
+    document.getElementById('edit-emailAddr').addEventListener('input', function () {
+        autoSelectEmailType(this, document.getElementById('edit-emailType'));
+    });
+
+    // Emails logic
+    document.getElementById('addEmailForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            email: document.getElementById('emailAddr').value,
+            password: document.getElementById('emailPassword').value,
+            email_type: document.getElementById('emailType').value
+        };
+        try {
+            const res = await fetch('/api/emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) window.location.reload();
+            else alert('Error: ' + (await res.json()).error);
+        } catch (err) { alert(err); }
+    });
+
+    document.querySelectorAll('.edit-email-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const email = JSON.parse(btn.getAttribute('data-email'));
+            document.getElementById('edit-email-id').value = email.id;
+            document.getElementById('edit-emailAddr').value = email.email;
+            document.getElementById('edit-emailPassword').value = email.password;
+            document.getElementById('edit-emailType').value = email.email_type;
+            new bootstrap.Modal(document.getElementById('editEmailModal')).show();
+        });
+    });
+
+    document.getElementById('editEmailForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-email-id').value;
+        const data = {
+            email: document.getElementById('edit-emailAddr').value,
+            password: document.getElementById('edit-emailPassword').value,
+            email_type: document.getElementById('edit-emailType').value
+        };
+        try {
+            const res = await fetch(`/api/emails/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) window.location.reload();
+            else alert('Error: ' + (await res.json()).error);
+        } catch (err) { alert(err); }
+    });
+
+    document.querySelectorAll('.delete-email-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (confirm(`Delete ${btn.getAttribute('data-email-addr')} and ALL its keys?`)) {
+                const res = await fetch(`/api/emails/${btn.getAttribute('data-email-id')}`, { method: 'DELETE' });
+                if (res.ok) window.location.reload();
+            }
+        });
+    });
+
+    document.getElementById('importCsvForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('file', document.getElementById('csvFile').files[0]);
+        try {
+            const res = await fetch('/api/emails/csv', {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Successfully imported ${data.imported} emails.`);
+                window.location.reload();
+            } else {
+                alert('Error: ' + (await res.json()).error);
+            }
+        } catch (err) { alert(err); }
+    });
+
+    // Keys Management Logic
+    document.querySelectorAll('.manage-keys-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const emailId = btn.getAttribute('data-email-id');
+            const emailAddr = btn.getAttribute('data-email-addr');
+            document.getElementById('manage-email-id').value = emailId;
+            document.getElementById('manageKeysEmailAddr').textContent = emailAddr;
+            loadEmailKeys(emailId);
+            new bootstrap.Modal(document.getElementById('manageKeysModal')).show();
+        });
+    });
+
+    async function loadEmailKeys(emailId) {
+        const tbody = document.getElementById('emailKeysBody');
+        const alertBox = document.getElementById('noKeysAlert');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+
+        try {
+            const res = await fetch(`/api/emails/${emailId}/keys`);
+            if (res.ok) {
+                const keys = await res.json();
+                tbody.innerHTML = '';
+                if (keys.length === 0) {
+                    alertBox.classList.remove('d-none');
+                } else {
+                    alertBox.classList.add('d-none');
+                    keys.forEach(k => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                        <td><span class="badge bg-secondary">${k.provider_type}</span><br><small>${k.provider_name}</small></td>
+                        <td>${k.key_name}</td>
+                        <td><code>${k.key_value.substring(0, 10)}...</code></td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input status-toggle" type="checkbox" data-key-id="${k.id}" ${k.is_active ? 'checked' : ''}>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger delete-key-btn" data-key-id="${k.id}"><i class="bi bi-trash"></i></button>
+                        </td>
+                    `;
+                        tbody.appendChild(tr);
+                    });
+
+                    // attach handlers
+                    document.querySelectorAll('.status-toggle').forEach(t => {
+                        t.addEventListener('change', async (e) => {
+                            await fetch(`/api/keys/${t.getAttribute('data-key-id')}/status`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ is_active: t.checked })
+                            });
+                        });
+                    });
+
+                    document.querySelectorAll('.delete-key-btn').forEach(b => {
+                        b.addEventListener('click', async () => {
+                            if (confirm('Delete this key?')) {
+                                await fetch(`/api/keys/${b.getAttribute('data-key-id')}`, { method: 'DELETE' });
+                                loadEmailKeys(emailId);
+                            }
+                        });
+                    });
+                }
+
+                // Calculate and display missing providers
+                const missingList = document.getElementById('missingKeysList');
+                missingList.innerHTML = '';
+
+                // Get all available providers from the select dropdown
+                const providerSelect = document.getElementById('keyProviderName');
+                const allProviders = Array.from(providerSelect.options)
+                    .filter(opt => opt.value !== "")
+                    .map(opt => opt.value);
+
+                // Get providers that already have a key
+                const existingProviders = keys.map(k => k.provider_name);
+
+                // Find missing providers
+                const missingProviders = allProviders.filter(p => !existingProviders.includes(p));
+
+                if (missingProviders.length === 0) {
+                    missingList.innerHTML = '<span class="text-success small"><i class="bi bi-check-circle-fill"></i> All providers have keys!</span>';
+                } else {
+                    missingProviders.forEach(p => {
+                        const badge = document.createElement('button');
+                        badge.className = 'btn btn-sm btn-outline-secondary rounded-pill py-0 px-2';
+                        badge.innerHTML = `<i class="bi bi-plus"></i> ${p}`;
+                        badge.onclick = () => {
+                            providerSelect.value = p;
+                            document.getElementById('keyValue').focus();
+                        };
+                        missingList.appendChild(badge);
+                    });
+                }
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center">Error loading keys</td></tr>';
+        }
+    }
+
+    document.getElementById('addKeyForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const emailId = document.getElementById('manage-email-id').value;
+        let keyName = document.getElementById('keyName').value;
+        if (!keyName) {
+            keyName = document.getElementById('manageKeysEmailAddr').textContent;
+        }
+        const data = {
+            provider_name: document.getElementById('keyProviderName').value,
+            key_value: document.getElementById('keyValue').value,
+            key_name: keyName
+        };
+        try {
+            const res = await fetch(`/api/emails/${emailId}/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                document.getElementById('addKeyForm').reset();
+                loadEmailKeys(emailId);
+            } else {
+                alert('Error: ' + (await res.json()).error);
+            }
+        } catch (err) { alert(err); }
+    });
+
+    // Fetch Recent Emails Logic
+    document.getElementById('fetchRecentEmailsBtn').addEventListener('click', async () => {
+        const emailId = document.getElementById('manage-email-id').value;
+        const statusDiv = document.getElementById('recentEmailsStatus');
+        const table = document.getElementById('recentEmailsTable');
+        const tbody = document.getElementById('recentEmailsBody');
+        const emptyAlert = document.getElementById('noRecentEmailsAlert');
+        const btn = document.getElementById('fetchRecentEmailsBtn');
+
+        if (!emailId) return;
+
+        // UI Loading state
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Fetching...';
+        statusDiv.className = 'alert alert-info small';
+        statusDiv.textContent = 'Connecting to IMAP server... This may take a few seconds.';
+        statusDiv.classList.remove('d-none');
+        table.style.display = 'none';
+        emptyAlert.classList.add('d-none');
+        tbody.innerHTML = '';
+
+        try {
+            const res = await fetch(`/api/emails/${emailId}/fetch_recent`);
+            if (res.ok) {
+                const emails = await res.json();
+                statusDiv.classList.add('d-none');
+
+                if (emails.length === 0) {
+                    emptyAlert.textContent = 'No recent emails found in the inbox.';
+                    emptyAlert.classList.remove('d-none');
+                } else {
+                    emails.forEach(email => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="small text-muted text-nowrap">${email.date}</td>
+                            <td class="small text-truncate" style="max-width: 150px;" title="${email.from}">${email.from}</td>
+                            <td class="small fw-semibold text-truncate" style="max-width: 250px;" title="${email.subject.replace(/"/g, '&quot;')}">${email.subject}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    table.style.display = 'table';
+                }
+            } else {
+                const error = await res.json();
+                statusDiv.className = 'alert alert-danger small';
+                statusDiv.textContent = 'Error: ' + (error.error || 'Failed to fetch emails');
+                emptyAlert.textContent = 'Failed to retrieve emails.';
+                emptyAlert.classList.remove('d-none');
+            }
+        } catch (err) {
+            statusDiv.className = 'alert alert-danger small';
+            statusDiv.textContent = 'Network Error: ' + err.message;
+            emptyAlert.textContent = 'Failed to retrieve emails.';
+            emptyAlert.classList.remove('d-none');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Fetch / Reload';
+        }
+    });
+
+    // Reset recent emails when modal opens
+    document.getElementById('manageKeysModal').addEventListener('show.bs.modal', function () {
+        document.getElementById('recentEmailsStatus').classList.add('d-none');
+        document.getElementById('recentEmailsTable').style.display = 'none';
+        document.getElementById('recentEmailsBody').innerHTML = '';
+        const emptyAlert = document.getElementById('noRecentEmailsAlert');
+        emptyAlert.textContent = 'Click "Fetch / Reload" to retrieve recent emails.';
+        emptyAlert.classList.remove('d-none');
+    });
+</script>
+{% endblock %}

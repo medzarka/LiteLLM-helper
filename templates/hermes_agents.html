@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <h1 class="h2 mb-0">Hermes Agents</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-primary text-white rounded-top">
+                <h5 class="mb-0"><i class="bi bi-robot me-2"></i>Configure Hermes Virtual Models</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-4 text-muted">
+                    Assign specific models to different Hermes tasks. When exporting the configuration, 
+                    a dedicated virtual alias (e.g., <code>hermes-vision</code>) is generated 
+                    for the selected model. This allows Hermes to reliably request task-specific models without needing to edit the Hermes configuration!
+                </p>
+
+                <form method="POST" action="{{ url_for('hermes_agents') }}">
+                    
+                    {% set tasks = [
+                        {'id': 'hermes-default', 'name': 'Default Model', 'desc': 'Used for new conversations. Existing conversations keep their selected model.', 'rec': 'groq-llama-3.3-70b-versatile, mistral-large-3, google-gemini-3.5-flash'},
+                        {'id': 'hermes-auxiliary', 'name': 'Auxiliary Models', 'desc': 'Side-task routing for vision, compression, title generation, etc. "Auto" uses the main chat model.', 'rec': 'groq-llama-3.1-8b-instant, mistral-ministral-3-8b'},
+                        {'id': 'hermes-vision', 'name': 'Vision', 'desc': 'Image/screenshot analysis (Requires a multimodal model like GPT-4o or Claude 3.5 Sonnet).', 'rec': 'google-gemini-3.5-flash, cohere-c4ai-aya-vision-32b, nvidia/nemotron-nano-12b-v2-vl'},
+                        {'id': 'hermes-web-extract', 'name': 'Web Extract', 'desc': 'Web page summarization (Requires good long-context processing).', 'rec': 'google-gemini-3.5-flash (1M context), openrouter-nvidia/nemotron-3-ultra (1M context)'},
+                        {'id': 'hermes-compression', 'name': 'Compression', 'desc': 'Context summarization (Requires strong reasoning and large context).', 'rec': 'cohere-command-a-reasoning, openrouter-nvidia/nemotron-3-nano-omni'},
+                        {'id': 'hermes-approval', 'name': 'Approval', 'desc': 'Smart command approval (Requires high reasoning and strict adherence to system prompts).', 'rec': 'cohere-command-a-reasoning, mistral-large-3, groq-llama-3.3-70b-versatile'},
+                        {'id': 'hermes-mcp', 'name': 'MCP', 'desc': 'MCP tool reasoning (Requires excellent function calling capabilities).', 'rec': 'mistral-large-3, cohere-command-a-plus, google-gemini-3.5-flash'},
+                        {'id': 'hermes-title', 'name': 'Title Generation', 'desc': 'Session titles (A fast, cheap model like Llama 3 8B or GPT-4o-mini is best).', 'rec': 'groq-llama-3.1-8b-instant, google-gemini-3.5-flash-lite, mistral-ministral-3-3b'},
+                        {'id': 'hermes-skills-hub', 'name': 'Skills Hub', 'desc': 'Skills search and install.', 'rec': 'groq-llama-3.1-8b-instant, google-gemini-3.5-flash-lite'},
+                        {'id': 'hermes-curator', 'name': 'Curator', 'desc': 'Skill-usage review pass.', 'rec': 'mistral-large-3, groq-llama-3.3-70b-versatile'},
+                        {'id': 'hermes-kanban', 'name': 'Kanban Decomposer', 'desc': 'Task decomposition (Requires high reasoning ability).', 'rec': 'cohere-command-a-reasoning, openrouter-nvidia/nemotron-3-nano-omni'},
+                        {'id': 'hermes-profile', 'name': 'Profile Describer', 'desc': 'Profile summaries.', 'rec': 'groq-llama-3.1-8b-instant, google-gemini-3.5-flash'},
+                        {'id': 'hermes-triage', 'name': 'Triage Specifier', 'desc': 'Issue and task triage specs.', 'rec': 'groq-llama-3.3-70b-versatile, mistral-large-3'},
+                        {'id': 'hermes-aggregator', 'name': 'Aggregator Agent', 'desc': 'Model used for aggregating responses.', 'rec': 'mistral-large-3, groq-llama-3.3-70b-versatile'},
+                        {'id': 'hermes-reference-1', 'name': 'Reference Model 1', 'desc': 'First reference model.', 'rec': 'Any capable model'},
+                        {'id': 'hermes-reference-2', 'name': 'Reference Model 2', 'desc': 'Second reference model.', 'rec': 'Any capable model'},
+                        {'id': 'hermes-reference-3', 'name': 'Reference Model 3', 'desc': 'Third reference model.', 'rec': 'Any capable model'},
+                        {'id': 'hermes-reference-4', 'name': 'Reference Model 4', 'desc': 'Fourth reference model.', 'rec': 'Any capable model'}
+                    ] %}
+
+                    <div class="row g-4">
+                        {% for task in tasks %}
+                        <div class="col-md-6">
+                            <div class="card h-100 border-light shadow-sm">
+                                <div class="card-body">
+                                    <h6 class="card-title fw-bold text-dark">{{ task.name }}</h6>
+                                    <p class="card-text text-muted small mb-1" style="min-height: 40px;">{{ task.desc }}</p>
+                                    <p class="card-text text-success small mb-3"><strong>Recommended:</strong> {{ task.rec }}</p>
+                                    
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <label class="form-label small fw-bold text-secondary mb-1">Primary Model: <code>{{ task.id }}</code></label>
+                                            <select class="form-select border-info mb-2" name="primary_{{ task.id }}">
+                                                <option value="">Auto / Unknown (Default)</option>
+                                                {% for model in models %}
+                                                    <option value="{{ model.id }}" {% if current_agents.get(task.id, {}).get('primary') == model.id or current_agents.get(task.id) == model.id %}selected{% endif %}>
+                                                        {{ model.name }} ({{ model.provider_name }})
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small fw-bold text-secondary mb-1">Fallback Model: <code>{{ task.id }}-fallback</code></label>
+                                            <select class="form-select border-warning" name="fallback_{{ task.id }}">
+                                                <option value="">None (No Fallback)</option>
+                                                {% for model in models %}
+                                                    <option value="{{ model.id }}" {% if current_agents.get(task.id, {}).get('fallback') == model.id %}selected{% endif %}>
+                                                        {{ model.name }} ({{ model.provider_name }})
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-2"></i>Save Hermes Mapping
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-info text-white rounded-top">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>How It Works</h5>
+            </div>
+            <div class="card-body bg-light">
+                <ul class="mb-0 text-muted ps-3">
+                    <li class="mb-2"><strong>Virtual Aliases:</strong> When a primary model is assigned to a task, a duplicate entry of that model is injected into the LiteLLM Config with the name of the Virtual Alias.</li>
+                    <li class="mb-2"><strong>Native Fallbacks:</strong> If a fallback model is assigned, it is injected as <code>hermes-task-fallback</code>. LiteLLM is automatically configured to route traffic to the fallback model if the primary model fails or rate limits. Hermes remains completely unaware of any failures!</li>
+                    <li class="mb-2"><strong>Seamless Integration:</strong> Configure Hermes to use <code>hermes-vision</code> or <code>hermes-mcp</code> as the target model. LiteLLM will dynamically route it to whatever backend is selected here.</li>
+                    <li><strong>No Restarts:</strong> Changing the target model here and syncing to live allows Hermes to instantly switch models without requiring any configuration edits on its side.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

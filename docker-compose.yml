@@ -100,7 +100,7 @@ services:
         soft: 65536
         hard: 65536
     ports:
-      - "4000:4000"
+      - "${LITELLM_IP:-0.0.0.0}:${LITELLM_PORT:-4000}:4000"
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm/config.yaml:/app/config.yaml
     depends_on:

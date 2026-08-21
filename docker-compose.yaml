@@ -41,6 +41,7 @@ services:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm:/app/shared
     environment:
       - PORT=${LITELLM_HELPER_PORT:-5001}
+      - URL_PREFIX=/litellm-helper
       - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}

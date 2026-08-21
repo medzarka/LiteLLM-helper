@@ -15,12 +15,27 @@ _LOGIN_LOCK = Lock()
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 900  # 15 minutes lockout after 5 failed attempts
 
+class PrefixMiddleware:
+    def __init__(self, wsgi_app, prefix=''):
+        self.wsgi_app = wsgi_app
+        self.prefix = prefix
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get('HTTP_X_FORWARDED_PREFIX', self.prefix)
+        if prefix:
+            environ['SCRIPT_NAME'] = prefix.rstrip('/')
+            path_info = environ.get('PATH_INFO', '')
+            if path_info.startswith(prefix):
+                environ['PATH_INFO'] = path_info[len(prefix):] or '/'
+        return self.wsgi_app(environ, start_response)
+
 def create_app():
     app = Flask(__name__, 
                 instance_relative_config=False,
                 template_folder='templates')
     
-    # Enable reverse proxy header support (for Traefik /litellm-helper prefix and HTTPS)
+    # Enable reverse proxy prefix and header support (for Traefik /litellm-helper prefix and HTTPS)
+    app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=os.environ.get('URL_PREFIX', ''))
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     
     app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')

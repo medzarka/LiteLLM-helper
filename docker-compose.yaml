@@ -61,6 +61,7 @@ services:
       - traefik.http.routers.litellm-helper.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
       - traefik.http.routers.litellm-helper.entrypoints=websecure
       - traefik.http.routers.litellm-helper.tls=true
+      - traefik.http.routers.litellm-helper.priority=100
       - traefik.http.middlewares.litellm-helper-strip.stripprefix.prefixes=/litellm-helper
       - traefik.http.routers.litellm-helper.middlewares=litellm-helper-strip
       - traefik.http.services.litellm-helper.loadbalancer.server.port=${LITELLM_HELPER_PORT:-5001}
@@ -69,6 +70,7 @@ services:
       # HTTP Router (Fallback plain HTTP)
       - traefik.http.routers.litellm-helper-http.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
       - traefik.http.routers.litellm-helper-http.entrypoints=web
+      - traefik.http.routers.litellm-helper-http.priority=100
       - traefik.http.routers.litellm-helper-http.middlewares=litellm-helper-strip
       - traefik.http.routers.litellm-helper-http.service=litellm-helper
     healthcheck:
@@ -160,6 +162,7 @@ services:
       - traefik.http.routers.litellm.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
       - traefik.http.routers.litellm.entrypoints=websecure
       - traefik.http.routers.litellm.tls=true
+      - traefik.http.routers.litellm.priority=100
       - traefik.http.middlewares.litellm-strip.stripprefix.prefixes=/litellm
       - traefik.http.routers.litellm.middlewares=litellm-strip
       - traefik.http.services.litellm.loadbalancer.server.port=4000
@@ -168,6 +171,7 @@ services:
       # HTTP Router (Fallback plain HTTP)
       - traefik.http.routers.litellm-http.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
       - traefik.http.routers.litellm-http.entrypoints=web
+      - traefik.http.routers.litellm-http.priority=100
       - traefik.http.routers.litellm-http.middlewares=litellm-strip
       - traefik.http.routers.litellm-http.service=litellm
     healthcheck:

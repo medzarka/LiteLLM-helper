@@ -7,6 +7,8 @@ import datetime
 from threading import Lock
 from flask import Flask, render_template, redirect, url_for, request, jsonify, session, send_file
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 # Rate limiting data structure for login attempts (IP -> {count, lockout_until})
 _FAILED_LOGINS = {}
 _LOGIN_LOCK = Lock()
@@ -17,6 +19,10 @@ def create_app():
     app = Flask(__name__, 
                 instance_relative_config=False,
                 template_folder='templates')
+    
+    # Enable reverse proxy header support (for Traefik /litellm-helper prefix and HTTPS)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    
     app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

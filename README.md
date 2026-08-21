@@ -50,8 +50,14 @@ docker compose up -d
 The `init-volumes` container will automatically create `/data` storage directories and initialize an empty `config.yaml` if not already present.
 
 ### 3. Access the Services
-- **LiteLLM Helper Dashboard:** `http://<server-ip>:5001`
-- **LiteLLM Proxy API Endpoint:** `http://<server-ip>:4000/v1`
+- **LiteLLM Helper UI (via Traefik Sub-path):** `https://<tailscale-or-domain>/litellm-helper`
+- **LiteLLM Proxy Endpoint (via Traefik Sub-path):** `https://<tailscale-or-domain>/litellm/v1`
+- **Via Dedicated Domains (if configured):**
+  - Helper: `https://<LITELLM_HELPER_DOMAIN>` (e.g. `https://helper.homelab-gw.ts.net`)
+  - LiteLLM: `https://<LITELLM_DOMAIN>` (e.g. `https://litellm.homelab-gw.ts.net`)
+- **Via Direct Local Ports:**
+  - LiteLLM Helper: `http://<server-ip>:5001`
+  - LiteLLM Proxy API: `http://<server-ip>:4000/v1`
 
 ---
 

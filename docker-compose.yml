@@ -53,6 +53,28 @@ services:
     depends_on:
       init-volumes:
         condition: service_completed_successfully
+    labels:
+      - traefik.enable=true
+      # HTTPS Router
+      - traefik.http.routers.litellm-helper.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
+      - traefik.http.routers.litellm-helper.entrypoints=websecure
+      - traefik.http.routers.litellm-helper.tls=true
+      - traefik.http.middlewares.litellm-helper-strip.stripprefix.prefixes=/litellm-helper
+      - traefik.http.routers.litellm-helper.middlewares=litellm-helper-strip
+      - traefik.http.services.litellm-helper.loadbalancer.server.port=${LITELLM_HELPER_PORT:-5001}
+      - traefik.docker.network=${SHARED_NETWORK:-shared_net}
+
+      # HTTP Router (Fallback plain HTTP)
+      - traefik.http.routers.litellm-helper-http.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
+      - traefik.http.routers.litellm-helper-http.entrypoints=web
+      - traefik.http.routers.litellm-helper-http.middlewares=litellm-helper-strip
+      - traefik.http.routers.litellm-helper-http.service=litellm-helper
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:\" + str(${LITELLM_HELPER_PORT:-5001}) + \"/login\").read()' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - shared_net
     logging:
@@ -77,6 +99,12 @@ services:
     depends_on:
       init-volumes:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     networks:
       - shared_net
     logging:
@@ -107,7 +135,7 @@ services:
       init-volumes:
         condition: service_completed_successfully
       litellm-redis:
-        condition: service_started
+        condition: service_healthy
     environment:
       - LITELLM_TIMEOUT=${LITELLM_TIMEOUT:-600}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
@@ -124,6 +152,28 @@ services:
       "--port", "4000",
       "--reload"
     ]
+    labels:
+      - traefik.enable=true
+      # HTTPS Router
+      - traefik.http.routers.litellm.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
+      - traefik.http.routers.litellm.entrypoints=websecure
+      - traefik.http.routers.litellm.tls=true
+      - traefik.http.middlewares.litellm-strip.stripprefix.prefixes=/litellm
+      - traefik.http.routers.litellm.middlewares=litellm-strip
+      - traefik.http.services.litellm.loadbalancer.server.port=4000
+      - traefik.docker.network=${SHARED_NETWORK:-shared_net}
+
+      # HTTP Router (Fallback plain HTTP)
+      - traefik.http.routers.litellm-http.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
+      - traefik.http.routers.litellm-http.entrypoints=web
+      - traefik.http.routers.litellm-http.middlewares=litellm-strip
+      - traefik.http.routers.litellm-http.service=litellm
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:4000/health/liveliness\").read()' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - shared_net
     logging:

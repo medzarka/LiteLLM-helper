@@ -7,6 +7,7 @@ services:
     container_name: litellm_init_volumes
     user: "0:0"
     restart: "no"
+    network_mode: none
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}:/data
     entrypoint: ["/bin/sh", "-c"]

@@ -6,7 +6,7 @@ services:
     image: alpine:latest
     container_name: litellm_init_volumes
     user: "0:0"
-    restart: "no"
+    restart: unless-stopped
     network_mode: none
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}:/data
@@ -25,7 +25,14 @@ services:
           chmod 664 /data/litellm/config.yaml
         fi
 
-        echo ">>> [Init] LiteLLM directories initialized successfully!"
+        echo ">>> [Init] LiteLLM directories initialized successfully! Storage guard active."
+        sleep infinity
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /data/litellm && test -d /data/litellm-helper || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   # ========================================================
   # LITELLM HELPER / CONTROL PLANE
@@ -55,7 +62,7 @@ services:
       - EMAIL_TO=${EMAIL_TO}
     depends_on:
       init-volumes:
-        condition: service_completed_successfully
+        condition: service_healthy
     labels:
       - traefik.enable=true
       # HTTPS Router
@@ -109,7 +116,7 @@ services:
     command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     depends_on:
       init-volumes:
-        condition: service_completed_successfully
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -150,7 +157,7 @@ services:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm/config.yaml:/app/config.yaml
     depends_on:
       init-volumes:
-        condition: service_completed_successfully
+        condition: service_healthy
       litellm-redis:
         condition: service_healthy
     environment:

@@ -80,6 +80,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 256M
     networks:
       - shared_net
     logging:
@@ -100,7 +106,7 @@ services:
       - "6379:6379"
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/redis_data:/data
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     depends_on:
       init-volumes:
         condition: service_completed_successfully
@@ -110,6 +116,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
     networks:
       - shared_net
     logging:
@@ -149,7 +161,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - SERVER_TIMEOUT=${SERVER_TIMEOUT:-600}
-      - LITELLM_WORKERS=${LITELLM_WORKERS:-4}
+      - LITELLM_WORKERS=${LITELLM_WORKERS:-2}
       - HF_TOKEN=${HF_TOKEN}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-600}
       - GENERIC_LOGGER_ENDPOINT=http://litellm-helper:${LITELLM_HELPER_PORT:-5001}/api/usage/webhook?token=${LITELLM_HELPER_PASSWORD}
@@ -158,6 +170,12 @@ services:
       "--port", "4000",
       "--reload"
     ]
+    deploy:
+      resources:
+        limits:
+          memory: 2560M
+        reservations:
+          memory: 512M
     labels:
       - traefik.enable=true
       # HTTPS Router

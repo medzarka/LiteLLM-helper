@@ -41,6 +41,7 @@ services:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm-helper:/app/data
       - ${WORKDIR:-/srv/data/ai-ui}/litellm:/app/shared
     environment:
+      - TZ=${TZ:-UTC}
       - PORT=${LITELLM_HELPER_PORT:-5001}
       - URL_PREFIX=/litellm-helper
       - LITELLM_HELPER_PASSWORD=${LITELLM_HELPER_PASSWORD}
@@ -141,6 +142,7 @@ services:
       litellm-redis:
         condition: service_healthy
     environment:
+      - TZ=${TZ:-UTC}
       - LITELLM_TIMEOUT=${LITELLM_TIMEOUT:-600}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - REDIS_HOST=litellm-redis

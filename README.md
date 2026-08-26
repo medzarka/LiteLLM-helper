@@ -1,8 +1,20 @@
+> ### 🌐 [Homelab Sovereign Cluster Architecture](https://github.com/medzarka/homelab-nodes)
+> This repository is a modular component of the **Homelab Sovereign Multi-Node Cluster** — an enterprise-grade, privacy-first, self-hosted infrastructure spanning cloud VPS, on-premise compute servers, and edge ARM nodes.
+> 
+> * **Zero-Trust Network**: Multi-host WireGuard mesh interconnect via **Tailscale** with strict **Firewalld** zoning (`iptables: false`).
+> * **Unified Identity & Ingress**: Centralized reverse proxy via **Traefik v3**, **Authelia SSO (2FA)**, and **LLDAP Directory**.
+> * **Cluster Orchestration & GitOps**: High-availability **Docker Swarm** managed declaratively via **Arcane Cockpit**.
+> * **End-to-End Observability**: Centralized portal (**Homepage**), metrics (**Beszel**), real-time logs (**Dozzle**), and uptime monitoring (**Uptime Kuma**).
+> * **Sovereign Local AI & Compute**: Distributed inference (**LiteLLM**, **Ollama**, **Qdrant**, **Mem0**, **Hermes Agents**).
+> * **Private Cloud & Storage**: Encrypted data synchronization, automated backups, and multi-cloud mirrors.
+
+---
+
 # ⚡ LiteLLM Helper & Gateway Control Plane
 
 A self-hosted management UI, analytics dashboard, and automated configuration generator for the **LiteLLM AI Gateway / Proxy**.
 
-Optimized for **ARM64 (Orange Pi 5 Plus 32GB RAM)** and generic Linux/Docker environments.
+Optimized for **ARM64 and AMD64** Linux/Docker environments.
 
 ---
 
@@ -61,9 +73,9 @@ The `init-volumes` container will automatically create `/data` storage directori
 
 ---
 
-## ⚙️ Hardware Tuning (Orange Pi 5 Plus 32GB RAM)
+## ⚙️ Hardware Tuning & Performance
 
-- **Worker Concurrency:** `LITELLM_WORKERS=4` allocates parallel worker processes across the RK3588's 8 CPU cores.
+- **Worker Concurrency:** `LITELLM_WORKERS=4` allocates parallel worker processes across multi-core CPUs.
 - **Ulimits:** Configured `nofile: 65536` for high concurrent network socket throughput.
 - **Log Rotation:** Docker JSON logging is limited to `10m` / max 3 files.
 

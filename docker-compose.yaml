@@ -95,6 +95,7 @@ services:
           memory: 256M
     networks:
       - shared_net
+      - homelab_swarm_net
     logging:
       driver: "json-file"
       options:
@@ -131,6 +132,7 @@ services:
           memory: 64M
     networks:
       - shared_net
+      - homelab_swarm_net
     logging:
       driver: "json-file"
       options:
@@ -209,6 +211,7 @@ services:
       start_period: 20s
     networks:
       - shared_net
+      - homelab_swarm_net
     logging:
       driver: "json-file"
       options:
@@ -218,4 +221,7 @@ services:
 networks:
   shared_net:
     name: ${SHARED_NETWORK:-shared_net}
+    external: true
+  homelab_swarm_net:
+    name: ${SWARM_NETWORK:-homelab_swarm_net}
     external: true

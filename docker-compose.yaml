@@ -42,8 +42,6 @@ services:
     container_name: litellm-helper
     platform: linux/arm64
     restart: unless-stopped
-    ports:
-      - "${LITELLM_HELPER_PORT:-5001}:${LITELLM_HELPER_PORT:-5001}"
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm-helper:/app/data
       - ${WORKDIR:-/srv/data/ai-ui}/litellm:/app/shared
@@ -63,24 +61,6 @@ services:
     depends_on:
       init-volumes:
         condition: service_healthy
-    labels:
-      - traefik.enable=true
-      # HTTPS Router
-      - traefik.http.routers.litellm-helper.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
-      - traefik.http.routers.litellm-helper.entrypoints=websecure
-      - traefik.http.routers.litellm-helper.tls=true
-      - traefik.http.routers.litellm-helper.priority=100
-      - traefik.http.middlewares.litellm-helper-strip.stripprefix.prefixes=/litellm-helper
-      - traefik.http.routers.litellm-helper.middlewares=litellm-helper-strip
-      - traefik.http.services.litellm-helper.loadbalancer.server.port=${LITELLM_HELPER_PORT:-5001}
-      - traefik.docker.network=${SHARED_NETWORK:-shared_net}
-
-      # HTTP Router (Fallback plain HTTP)
-      - traefik.http.routers.litellm-helper-http.rule=PathPrefix(`/litellm-helper`) || Host(`${LITELLM_HELPER_DOMAIN:-helper.homelab-gw.ts.net}`)
-      - traefik.http.routers.litellm-helper-http.entrypoints=web
-      - traefik.http.routers.litellm-helper-http.priority=100
-      - traefik.http.routers.litellm-helper-http.middlewares=litellm-helper-strip
-      - traefik.http.routers.litellm-helper-http.service=litellm-helper
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:\" + str(${LITELLM_HELPER_PORT:-5001}) + \"/login\").read()' || exit 1"]
       interval: 30s
@@ -110,8 +90,6 @@ services:
     container_name: litellm-redis
     platform: linux/arm64
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/redis_data:/data
     command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -153,8 +131,6 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    ports:
-      - "${LITELLM_IP:-0.0.0.0}:${LITELLM_PORT:-4000}:4000"
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm/config.yaml:/app/config.yaml
     depends_on:
@@ -185,24 +161,6 @@ services:
           memory: 2560M
         reservations:
           memory: 512M
-    labels:
-      - traefik.enable=true
-      # HTTPS Router
-      - traefik.http.routers.litellm.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
-      - traefik.http.routers.litellm.entrypoints=websecure
-      - traefik.http.routers.litellm.tls=true
-      - traefik.http.routers.litellm.priority=100
-      - traefik.http.middlewares.litellm-strip.stripprefix.prefixes=/litellm
-      - traefik.http.routers.litellm.middlewares=litellm-strip
-      - traefik.http.services.litellm.loadbalancer.server.port=4000
-      - traefik.docker.network=${SHARED_NETWORK:-shared_net}
-
-      # HTTP Router (Fallback plain HTTP)
-      - traefik.http.routers.litellm-http.rule=PathPrefix(`/litellm`) || Host(`${LITELLM_DOMAIN:-litellm.homelab-gw.ts.net}`)
-      - traefik.http.routers.litellm-http.entrypoints=web
-      - traefik.http.routers.litellm-http.priority=100
-      - traefik.http.routers.litellm-http.middlewares=litellm-strip
-      - traefik.http.routers.litellm-http.service=litellm
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:4000/health/liveliness\").read()' || exit 1"]
       interval: 30s

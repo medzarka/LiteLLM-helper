@@ -83,7 +83,7 @@ services:
       - "traefik.http.routers.litellm-helper.tls=true"
       - "traefik.http.routers.litellm-helper.middlewares=app-fail2ban@file,security-headers@file"
       - "traefik.http.services.litellm-helper.loadbalancer.server.port=5001"
-      - "traefik.docker.network=${SHARED_NETWORK:-shared_net}"
+      - "traefik.docker.network=${SWARM_NETWORK:-homelab_swarm_net}"
     logging:
       driver: "json-file"
       options:
@@ -185,7 +185,7 @@ services:
       - "traefik.http.routers.litellm.tls=true"
       - "traefik.http.routers.litellm.middlewares=app-fail2ban@file,security-headers@file"
       - "traefik.http.services.litellm.loadbalancer.server.port=4000"
-      - "traefik.docker.network=${SHARED_NETWORK:-shared_net}"
+      - "traefik.docker.network=${SWARM_NETWORK:-homelab_swarm_net}"
     logging:
       driver: "json-file"
       options:

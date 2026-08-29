@@ -76,6 +76,14 @@ services:
     networks:
       - shared_net
       - homelab_swarm_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.litellm-helper.rule=Host(`litellm-helper.${ROOT_DOMAIN:-example.com}`)"
+      - "traefik.http.routers.litellm-helper.entrypoints=websecure"
+      - "traefik.http.routers.litellm-helper.tls=true"
+      - "traefik.http.routers.litellm-helper.middlewares=app-fail2ban@file,security-headers@file"
+      - "traefik.http.services.litellm-helper.loadbalancer.server.port=5001"
+      - "traefik.docker.network=${SHARED_NETWORK:-shared_net}"
     logging:
       driver: "json-file"
       options:
@@ -170,6 +178,14 @@ services:
     networks:
       - shared_net
       - homelab_swarm_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.litellm.rule=Host(`litellm.${ROOT_DOMAIN:-example.com}`)"
+      - "traefik.http.routers.litellm.entrypoints=websecure"
+      - "traefik.http.routers.litellm.tls=true"
+      - "traefik.http.routers.litellm.middlewares=app-fail2ban@file,security-headers@file"
+      - "traefik.http.services.litellm.loadbalancer.server.port=4000"
+      - "traefik.docker.network=${SHARED_NETWORK:-shared_net}"
     logging:
       driver: "json-file"
       options:

@@ -310,6 +310,19 @@ def usage_webhook():
                 safe_incr(f"tpd:{hashed_key}", total_tokens, 86400)
                 safe_incr(f"tpm_month:{month_tag}:{hashed_key}", total_tokens, 3024000)
                 safe_incr(f"tpm_month:{hashed_key}", total_tokens, 3024000)
+
+            # Record persistent daily request statistics for weekly/historical digests
+            try:
+                from models.models import DailyStats
+                model_name = data.get('model') or (data.get('litellm_params', {}) or {}).get('model') or 'unknown'
+                provider_name = data.get('custom_llm_provider') or (data.get('litellm_params', {}) or {}).get('custom_llm_provider') or 'unknown'
+                today_str = datetime.date.today().isoformat()
+                DailyStats().record_request(today_str, provider_name, model_name, total_tokens)
+                safe_incr(f"daily_req:{today_str}", 1, 30 * 86400)
+                if total_tokens > 0:
+                    safe_incr(f"daily_tokens:{today_str}", total_tokens, 30 * 86400)
+            except Exception as e:
+                print("Error recording daily stats in DB:", e)
                 
             # Upstream rate limit headers extraction
             raw_headers = {}

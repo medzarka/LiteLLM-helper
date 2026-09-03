@@ -909,26 +909,17 @@ def create_app():
     scheduler = APScheduler()
     scheduler.init_app(app)
     
-    # Run the models check job twice a week (e.g., Monday and Thursday at 9:00 AM)
-    from services.notifications import check_models_and_notify, check_usage_and_notify
+    # Weekly operations & model updates digest: every Monday at 6:00 AM
+    from services.notifications import send_weekly_digest
     scheduler.add_job(
-        id='check_models_job',
-        func=check_models_and_notify,
+        id='weekly_digest_job',
+        func=send_weekly_digest,
         trigger='cron',
-        day_of_week='mon,thu',
-        hour=9,
+        day_of_week='mon',
+        hour=6,
         minute=0
     )
-    
-    # Run the daily usage report at 11:50 PM every day
-    scheduler.add_job(
-        id='check_usage_job',
-        func=check_usage_and_notify,
-        trigger='cron',
-        hour=23,
-        minute=50
-    )
-    
+
     scheduler.start()
 
     return app

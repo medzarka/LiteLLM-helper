@@ -32,6 +32,26 @@ def force_notify():
         'usage_notification': usage_result
     }), 200
 
+@bp.route('/emails/weekly-digest', methods=['POST'])
+def trigger_weekly_digest():
+    try:
+        from .notifications import send_weekly_digest
+    except (ImportError, ValueError):
+        from services.notifications import send_weekly_digest
+    res = send_weekly_digest(force=True)
+    return jsonify(res), (200 if res.get('success') else 500)
+
+@bp.route('/emails/weekly-digest/preview', methods=['GET'])
+def preview_weekly_digest():
+    try:
+        from .notifications import build_weekly_digest_content
+    except (ImportError, ValueError):
+        from services.notifications import build_weekly_digest_content
+    subject, html, metrics = build_weekly_digest_content()
+    if request.args.get('format') == 'json':
+        return jsonify({'subject': subject, 'metrics': metrics})
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
 @bp.route('/emails', methods=['POST'])
 def create_email():
     try:

@@ -133,6 +133,34 @@ class Database:
             FOREIGN KEY (model_id) REFERENCES model (id) ON DELETE CASCADE
         )
         ''')
+
+        # Daily Request Statistics table (for weekly and historical reporting)
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS daily_request_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            provider_name TEXT DEFAULT 'unknown',
+            model_name TEXT DEFAULT 'unknown',
+            request_count INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            UNIQUE(date, provider_name, model_name)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_stats_date ON daily_request_stats(date)')
+
+        # Discovered Model History table (for tracking new vs deprecated models)
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS discovered_model_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id TEXT UNIQUE NOT NULL,
+            provider TEXT NOT NULL,
+            name TEXT,
+            first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN DEFAULT 1
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_disc_model_seen ON discovered_model_history(first_seen, last_seen)')
         
         self.conn.commit()
         # Add health-check columns if this is an existing DB (safe no-op on fresh DBs).
@@ -805,4 +833,166 @@ class EmailAccount:
         cursor.execute('DELETE FROM email_account WHERE id = ?', (email_id,))
         self.db.conn.commit()
         return cursor.rowcount > 0
+
+
+class DailyStats:
+    def __init__(self, db=None):
+        self.db = db or Database()
+
+    def record_request(self, date_str, provider_name, model_name, tokens=0):
+        """Upsert daily requests and tokens for a given date, provider, and model."""
+        cursor = self.db.conn.cursor()
+        cursor.execute('''
+            INSERT INTO daily_request_stats (date, provider_name, model_name, request_count, total_tokens)
+            VALUES (?, ?, ?, 1, ?)
+            ON CONFLICT(date, provider_name, model_name) DO UPDATE SET
+                request_count = request_count + 1,
+                total_tokens = total_tokens + excluded.total_tokens
+        ''', (date_str, provider_name or 'unknown', model_name or 'unknown', int(tokens or 0)))
+        self.db.conn.commit()
+
+    def get_two_week_summary(self):
+        """
+        Returns a structured 2-week summary of requests and tokens.
+        Week 1: Past 7 days (including today)
+        Week 2: Days 8 to 14 ago
+        """
+        import datetime
+        today = datetime.date.today()
+        
+        # Build 14-day date list (chronological from 13 days ago to today)
+        dates_14 = [today - datetime.timedelta(days=i) for i in range(13, -1, -1)]
+        start_date_str = dates_14[0].isoformat()
+        
+        cursor = self.db.conn.cursor()
+        cursor.execute('''
+            SELECT date, SUM(request_count) as reqs, SUM(total_tokens) as toks
+            FROM daily_request_stats
+            WHERE date >= ?
+            GROUP BY date
+        ''', (start_date_str,))
+        
+        stats_by_date = {row[0]: {'requests': row[1] or 0, 'tokens': row[2] or 0} for row in cursor.fetchall()}
+        
+        week2_dates = dates_14[:7]   # Days 13 to 7 ago (Prior week)
+        week1_dates = dates_14[7:]   # Days 6 to 0 ago (Recent week)
+        
+        def format_week(date_list):
+            days = []
+            total_req = 0
+            total_tok = 0
+            for d in date_list:
+                ds = d.isoformat()
+                st = stats_by_date.get(ds, {'requests': 0, 'tokens': 0})
+                days.append({
+                    'date': ds,
+                    'day_name': d.strftime('%a'),
+                    'formatted': d.strftime('%b %d'),
+                    'requests': st['requests'],
+                    'tokens': st['tokens']
+                })
+                total_req += st['requests']
+                total_tok += st['tokens']
+            return {
+                'days': days,
+                'total_requests': total_req,
+                'total_tokens': total_tok,
+                'start': date_list[0].strftime('%b %d'),
+                'end': date_list[-1].strftime('%b %d')
+            }
+            
+        w2 = format_week(week2_dates)
+        w1 = format_week(week1_dates)
+        
+        if w2['total_requests'] > 0:
+            trend_pct = round(((w1['total_requests'] - w2['total_requests']) / w2['total_requests']) * 100, 1)
+        elif w1['total_requests'] > 0:
+            trend_pct = 100.0
+        else:
+            trend_pct = 0.0
+
+        # Also get top 5 models across the 14 days
+        cursor.execute('''
+            SELECT model_name, SUM(request_count) as total_reqs, SUM(total_tokens) as total_toks
+            FROM daily_request_stats
+            WHERE date >= ?
+            GROUP BY model_name
+            ORDER BY total_reqs DESC
+            LIMIT 5
+        ''', (start_date_str,))
+        top_models = [{'model_name': r[0], 'requests': r[1], 'tokens': r[2]} for r in cursor.fetchall()]
+            
+        return {
+            'week1': w1,
+            'week2': w2,
+            'trend_pct': trend_pct,
+            'total_14d_requests': w1['total_requests'] + w2['total_requests'],
+            'total_14d_tokens': w1['total_tokens'] + w2['total_tokens'],
+            'top_models': top_models
+        }
+
+
+class ModelCatalogHistory:
+    def __init__(self, db=None):
+        self.db = db or Database()
+
+    def sync_discovered_models(self, discovered_models):
+        """
+        Synchronizes discovered models with history table to detect:
+        1. Models newly discovered in the last 7 days.
+        2. Models that were deprecated/removed.
+        """
+        import datetime
+        cursor = self.db.conn.cursor()
+        now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        seven_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        newly_found = []
+        
+        for m in discovered_models:
+            m_id = m['id']
+            provider = m.get('provider', 'unknown')
+            name = m.get('name', m_id)
+            
+            cursor.execute('SELECT first_seen, last_seen, is_active FROM discovered_model_history WHERE model_id = ?', (m_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                cursor.execute('''
+                    INSERT INTO discovered_model_history (model_id, provider, name, first_seen, last_seen, is_active)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                ''', (m_id, provider, name, now, now))
+                newly_found.append(m)
+            else:
+                first_seen = row[0]
+                cursor.execute('''
+                    UPDATE discovered_model_history 
+                    SET last_seen = ?, is_active = 1, name = ?, provider = ?
+                    WHERE model_id = ?
+                ''', (now, name, provider, m_id))
+                if str(first_seen) >= seven_days_ago:
+                    newly_found.append(m)
+
+        # Mark models not seen recently as deprecated
+        cursor.execute('''
+            UPDATE discovered_model_history
+            SET is_active = 0
+            WHERE last_seen < ? AND is_active = 1
+        ''', (seven_days_ago,))
+        
+        fourteen_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=14)).strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute('''
+            SELECT model_id, provider, name, last_seen
+            FROM discovered_model_history
+            WHERE is_active = 0 AND last_seen >= ?
+            ORDER BY last_seen DESC
+        ''', (fourteen_days_ago,))
+        
+        deprecated = [{'id': r[0], 'provider': r[1], 'name': r[2], 'last_seen': r[3]} for r in cursor.fetchall()]
+        self.db.conn.commit()
+        
+        return {
+            'new_models': newly_found,
+            'deprecated_models': deprecated
+        }
 

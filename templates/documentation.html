@@ -78,13 +78,21 @@
 
         <div class="card shadow-sm border-0 mt-4">
             <div class="card-header bg-info text-white rounded-top">
-                <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Notifications</h5>
+                <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Weekly Digest & Emails</h5>
             </div>
             <div class="card-body bg-light text-center">
-                <p class="small text-muted mb-3">Manually trigger model updates and usage emails immediately.</p>
-                <button id="forceNotifyBtn" class="btn btn-primary w-100">
-                    <i class="bi bi-send me-1"></i> Force Send Emails
-                </button>
+                <p class="small text-muted mb-3">Scheduled weekly report runs every <strong>Monday at 06:00 AM</strong> with 2-week request statistics, new discovered models, and deprecated models.</p>
+                <div class="d-grid gap-2 mb-2">
+                    <button id="sendWeeklyDigestBtn" class="btn btn-success btn-sm">
+                        <i class="bi bi-envelope-check me-1"></i> Send Weekly Digest Now
+                    </button>
+                    <a href="/api/emails/weekly-digest/preview" target="_blank" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-eye me-1"></i> Preview Weekly Digest
+                    </a>
+                    <button id="forceNotifyBtn" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-send me-1"></i> Send Daily Usage & Models
+                    </button>
+                </div>
                 <div id="notifyStatus" class="mt-3 text-start small"></div>
             </div>
         </div>
@@ -219,10 +227,38 @@ Below is a comprehensive enumeration of every interface within the LiteLLM Helpe
         container.querySelectorAll('h3').forEach(el => el.classList.add('h5', 'mt-4', 'mb-3', 'text-secondary'));
         container.querySelectorAll('ul').forEach(el => el.classList.add('mb-3'));
         
-        // Force Notify logic
-        const forceNotifyBtn = document.getElementById('forceNotifyBtn');
+        // Send Weekly Digest logic
+        const sendWeeklyDigestBtn = document.getElementById('sendWeeklyDigestBtn');
         const notifyStatus = document.getElementById('notifyStatus');
         
+        if (sendWeeklyDigestBtn) {
+            sendWeeklyDigestBtn.addEventListener('click', async function() {
+                sendWeeklyDigestBtn.disabled = true;
+                sendWeeklyDigestBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending Digest...';
+                notifyStatus.innerHTML = '';
+                
+                try {
+                    const response = await fetch('/api/emails/weekly-digest', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        notifyStatus.innerHTML = `<div class="text-success"><i class="bi bi-check-circle me-1"></i> ${data.message}</div>`;
+                    } else {
+                        notifyStatus.innerHTML = `<div class="text-danger"><i class="bi bi-exclamation-circle me-1"></i> ${data.message}</div>`;
+                    }
+                } catch (error) {
+                    notifyStatus.innerHTML = `<div class="text-danger"><i class="bi bi-x-circle me-1"></i> Error: ${error.message}</div>`;
+                } finally {
+                    sendWeeklyDigestBtn.disabled = false;
+                    sendWeeklyDigestBtn.innerHTML = '<i class="bi bi-envelope-check me-1"></i> Send Weekly Digest Now';
+                }
+            });
+        }
+
+        // Force Notify logic
+        const forceNotifyBtn = document.getElementById('forceNotifyBtn');
         if (forceNotifyBtn) {
             forceNotifyBtn.addEventListener('click', async function() {
                 forceNotifyBtn.disabled = true;

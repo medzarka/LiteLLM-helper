@@ -218,3 +218,300 @@ def check_usage_and_notify():
         msg = f"Error in check_usage_and_notify: {e}"
         print(msg)
         return {"success": False, "message": msg}
+
+
+def build_weekly_digest_content():
+    """
+    Builds the subject and HTML content for the weekly digest report.
+    Returns: (subject, html, metrics_dict)
+    """
+    now = datetime.now()
+    try:
+        from models.models import Database, DailyStats, ModelCatalogHistory
+        from services.discovery import discover_free_models
+    except ImportError:
+        from ..models.models import Database, DailyStats, ModelCatalogHistory
+        from .discovery import discover_free_models
+
+    db = Database()
+
+    # 1. Sync Model Discovery and Extract Changes (New & Deprecated)
+    try:
+        discovered = discover_free_models()
+        model_changes = ModelCatalogHistory(db).sync_discovered_models(discovered)
+    except Exception as e:
+        print("Error during discover_free_models sync:", e)
+        model_changes = {'new_models': [], 'deprecated_models': []}
+
+    new_models = model_changes.get('new_models', [])
+    deprecated_models = model_changes.get('deprecated_models', [])
+
+    # 2. Retrieve 2-Week Daily & Weekly Usage Statistics
+    usage_summary = DailyStats(db).get_two_week_summary()
+    w1 = usage_summary['week1']
+    w2 = usage_summary['week2']
+    trend_pct = usage_summary['trend_pct']
+    top_models = usage_summary.get('top_models', [])
+
+    # 3. Generate Clean, Full-Information, Precise HTML Email
+    root_domain = os.environ.get('ROOT_DOMAIN', 'bluewave.work')
+    dashboard_url = f"https://litellm-helper.{root_domain}"
+
+    trend_color = '#10b981' if trend_pct >= 0 else '#ef4444'
+    trend_arrow = '▲' if trend_pct >= 0 else '▼'
+    trend_sign = '+' if trend_pct >= 0 else ''
+
+    # Build Daily Comparison Table rows (matching Mon..Sun by index)
+    daily_rows_html = ""
+    w1_days = w1.get('days', [])
+    w2_days = w2.get('days', [])
+
+    for i in range(7):
+        d1 = w1_days[i] if i < len(w1_days) else {'day_name': f"Day {i+1}", 'requests': 0, 'formatted': '-'}
+        d2 = w2_days[i] if i < len(w2_days) else {'day_name': f"Day {i+1}", 'requests': 0, 'formatted': '-'}
+
+        day_name = d1.get('day_name', f"Day {i+1}")
+        r1 = d1.get('requests', 0)
+        r2 = d2.get('requests', 0)
+
+        if r2 > 0:
+            d_delta = round(((r1 - r2) / r2) * 100)
+            d_delta_str = f"{'+' if d_delta >= 0 else ''}{d_delta}%"
+            d_delta_color = '#10b981' if d_delta >= 0 else '#64748b'
+        elif r1 > 0:
+            d_delta_str = "New"
+            d_delta_color = '#10b981'
+        else:
+            d_delta_str = "0%"
+            d_delta_color = '#94a3b8'
+
+        daily_rows_html += f"""
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 9px 12px; font-weight: 600; color: #1e293b;">{day_name} <span style="font-weight: normal; color: #64748b; font-size: 11px;">({d1.get('formatted')})</span></td>
+            <td style="padding: 9px 12px; text-align: right; color: #64748b; font-family: monospace;">{r2:,}</td>
+            <td style="padding: 9px 12px; text-align: right; font-weight: 600; color: #0f172a; font-family: monospace;">{r1:,}</td>
+            <td style="padding: 9px 12px; text-align: right; font-weight: 600; color: {d_delta_color}; font-size: 12px;">{d_delta_str}</td>
+        </tr>
+        """
+
+    # Top Models Section
+    top_models_html = ""
+    if top_models:
+        top_models_html += """
+        <div style="margin-top: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Top Models (Last 14 Days)</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        """
+        for m in top_models:
+            top_models_html += f"""
+            <tr style="border-bottom: 1px dashed #cbd5e1;">
+                <td style="padding: 5px 0; font-weight: 500; color: #1e293b;">{m['model_name']}</td>
+                <td style="padding: 5px 0; text-align: right; font-family: monospace; font-weight: 600; color: #0284c7;">{m['requests']:,} reqs</td>
+            </tr>
+            """
+        top_models_html += "</table></div>"
+
+    # New Models Section
+    new_models_html = ""
+    if new_models:
+        new_models_html += f"""
+        <div style="margin-top: 22px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f766e; font-weight: 700;">
+                ✨ New Free Models Discovered ({len(new_models)})
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 6px;">
+                <thead>
+                    <tr style="background: #ccfbf1; color: #115e59; text-align: left;">
+                        <th style="padding: 8px 10px;">Model Name</th>
+                        <th style="padding: 8px 10px;">Provider</th>
+                        <th style="padding: 8px 10px;">Context</th>
+                        <th style="padding: 8px 10px;">Capabilities</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for nm in new_models[:10]:
+            skills_str = ", ".join(nm.get('skills', [])) or ("Tools" if nm.get('supports_function_calling') else "Chat")
+            ctx = f"{nm.get('context_length', 0):,} tokens" if nm.get('context_length') else "-"
+            new_models_html += f"""
+                    <tr style="border-bottom: 1px solid #e6fffa;">
+                        <td style="padding: 7px 10px; font-weight: 600; color: #134e4a;">{nm.get('name', nm['id'])}</td>
+                        <td style="padding: 7px 10px; color: #0f766e; text-transform: uppercase; font-size: 11px; font-weight: 600;">{nm.get('provider')}</td>
+                        <td style="padding: 7px 10px; color: #334155; font-family: monospace;">{ctx}</td>
+                        <td style="padding: 7px 10px; color: #0f766e; font-size: 11px;">{skills_str}</td>
+                    </tr>
+            """
+        if len(new_models) > 10:
+            new_models_html += f"""
+                    <tr>
+                        <td colspan="4" style="padding: 8px 10px; text-align: center; color: #0d9488; font-style: italic;">
+                            + {len(new_models) - 10} additional models available in dashboard
+                        </td>
+                    </tr>
+            """
+        new_models_html += "</tbody></table></div>"
+    else:
+        new_models_html = """
+        <div style="margin-top: 18px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #94a3b8; border-radius: 4px; font-size: 13px; color: #475569;">
+            <strong>Catalog Status:</strong> No new models discovered this week. Upstream free tiers unchanged.
+        </div>
+        """
+
+    # Deprecated Models Section
+    deprecated_html = ""
+    if deprecated_models:
+        deprecated_html += f"""
+        <div style="margin-top: 20px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #b91c1c; font-weight: 700;">
+                ⚠️ Deprecated / Removed Upstream ({len(deprecated_models)})
+            </h3>
+            <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #7f1d1d;">
+        """
+        for dm in deprecated_models[:8]:
+            deprecated_html += f"""
+                <li style="margin-bottom: 4px;">
+                    <strong>{dm.get('name') or dm.get('model_id')}</strong> ({dm.get('provider', '').upper()}) — No longer available in discovery feed.
+                </li>
+            """
+        if len(deprecated_models) > 8:
+            deprecated_html += f"<li><em>+ {len(deprecated_models) - 8} more deprecated models</em></li>"
+        deprecated_html += "</ul></div>"
+
+    # HTML Email Document
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <div style="max-width: 650px; margin: 25px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 26px 30px; color: #ffffff;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #38bdf8; font-weight: 700; margin-bottom: 4px;">
+                Homelab Sovereign AI Gateway
+            </div>
+            <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff;">
+                Weekly Operations & Model Digest
+            </h1>
+            <div style="margin-top: 6px; font-size: 13px; color: #94a3b8;">
+                Coverage: <strong>{w2.get('start')} – {w1.get('end')}, {now.year}</strong> (Last 14 Days)
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div style="padding: 26px 30px;">
+
+            <!-- KPI Cards Grid -->
+            <table style="width: 100%; border-collapse: separate; border-spacing: 10px 0; margin-bottom: 24px;">
+                <tr>
+                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
+                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Past 7 Days</div>
+                        <div style="font-size: 22px; font-weight: 700; color: #0f172a; margin: 4px 0;">{w1.get('total_requests', 0):,}</div>
+                        <div style="font-size: 11px; color: #0284c7; font-weight: 500;">Requests</div>
+                    </td>
+                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
+                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Prior 7 Days</div>
+                        <div style="font-size: 22px; font-weight: 700; color: #475569; margin: 4px 0;">{w2.get('total_requests', 0):,}</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">Requests</div>
+                    </td>
+                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
+                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Weekly Trend</div>
+                        <div style="font-size: 22px; font-weight: 700; color: {trend_color}; margin: 4px 0;">{trend_arrow} {trend_sign}{trend_pct}%</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">Volume Delta</div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Daily Requests Comparison Table -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a; font-weight: 700;">
+                    Daily Request Distribution (2-Week Breakdown)
+                </h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="background: #f1f5f9; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 8px 12px;">Day</th>
+                            <th style="padding: 8px 12px; text-align: right;">Prior Week</th>
+                            <th style="padding: 8px 12px; text-align: right;">Recent Week</th>
+                            <th style="padding: 8px 12px; text-align: right;">Day Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {daily_rows_html}
+                        <!-- Total Row -->
+                        <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
+                            <td style="padding: 10px 12px; color: #0f172a;">Weekly Total</td>
+                            <td style="padding: 10px 12px; text-align: right; color: #64748b; font-family: monospace;">{w2.get('total_requests', 0):,}</td>
+                            <td style="padding: 10px 12px; text-align: right; color: #0f172a; font-family: monospace;">{w1.get('total_requests', 0):,}</td>
+                            <td style="padding: 10px 12px; text-align: right; color: {trend_color}; font-size: 13px;">{trend_sign}{trend_pct}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            {top_models_html}
+
+            {new_models_html}
+
+            {deprecated_html}
+
+            <!-- CTA Button -->
+            <div style="margin-top: 30px; text-align: center;">
+                <a href="{dashboard_url}" style="display: inline-block; background: #0284c7; color: #ffffff; text-decoration: none; padding: 11px 24px; border-radius: 6px; font-weight: 600; font-size: 13px; box-shadow: 0 2px 5px rgba(2,132,199,0.3);">
+                    Open LiteLLM Helper Dashboard &rarr;
+                </a>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 18px 30px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; line-height: 1.5;">
+            Scheduled weekly report • Sent every Monday at 06:00 AM<br>
+            Managed by <strong>LiteLLM Helper v4</strong> on <em>oci01-flex.bluewave.work</em>
+        </div>
+
+    </div>
+</body>
+</html>
+    """
+
+    subject = f"LiteLLM Weekly Digest: {w1.get('total_requests', 0):,} Requests ({trend_sign}{trend_pct}%) | {len(new_models)} New Models"
+    return subject, html, usage_summary
+
+
+def send_weekly_digest(force=False):
+    """
+    Executes and sends the weekly operational digest.
+    Guards with a distributed Redis lock to ensure only 1 worker process sends the email.
+    """
+    now = datetime.now()
+    print(f"[{now}] Executing send_weekly_digest (force={force})...")
+
+    if not force:
+        import redis
+        redis_host = os.environ.get('REDIS_HOST', 'litellm-redis')
+        redis_port = int(os.environ.get('REDIS_PORT', 6379))
+        redis_password = os.environ.get('REDIS_PASSWORD', '')
+        try:
+            r = redis.Redis(host=redis_host, port=redis_port, password=redis_password, decode_responses=True)
+            # Acquire distributed lock for 10 minutes
+            acquired = r.set('weekly_digest_lock', 'locked', nx=True, ex=600)
+            if not acquired:
+                msg = "Weekly digest already sent or running in another worker process, skipping."
+                print(msg)
+                return {"success": True, "message": msg}
+        except Exception as e:
+            print("Redis lock skipped:", e)
+
+    try:
+        subject, html, _ = build_weekly_digest_content()
+        return send_email(subject, html)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        msg = f"Error in send_weekly_digest: {e}"
+        print(msg)
+        return {"success": False, "message": msg}
+

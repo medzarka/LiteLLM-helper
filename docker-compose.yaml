@@ -58,6 +58,7 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
       - EMAIL_TO=${EMAIL_TO}
+      - ROOT_DOMAIN=${ROOT_DOMAIN:-bluewave.work}
     depends_on:
       init-volumes:
         condition: service_healthy
@@ -81,7 +82,7 @@ services:
       - "traefik.http.routers.litellm-helper.rule=Host(`litellm-helper.${ROOT_DOMAIN:-example.com}`)"
       - "traefik.http.routers.litellm-helper.entrypoints=websecure"
       - "traefik.http.routers.litellm-helper.tls=true"
-      - "traefik.http.routers.litellm-helper.middlewares=app-fail2ban@file,security-headers@file"
+      - "traefik.http.routers.litellm-helper.middlewares=authelia-sso@file,app-fail2ban@file,security-headers@file"
       - "traefik.http.services.litellm-helper.loadbalancer.server.port=5001"
       - "traefik.docker.network=${SWARM_NETWORK:-homelab_swarm_net}"
     logging:

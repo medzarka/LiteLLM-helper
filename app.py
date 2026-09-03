@@ -61,10 +61,25 @@ def create_app():
     def _require_login():
         if request.endpoint in ('login', 'logout', 'static', 'keys.usage_webhook'):
             return
-        if not app.config.get('LITELLM_HELPER_PASSWORD'):
+
+        # 1. Authelia SSO ForwardAuth Integration
+        remote_user = request.headers.get('Remote-User')
+        if remote_user:
+            session['authenticated'] = True
+            session['user'] = remote_user
+            session['auth_type'] = 'authelia'
+            remote_groups = [g.strip() for g in request.headers.get('Remote-Groups', '').split(',') if g.strip()]
+            session['groups'] = remote_groups
             return
+
+        # 2. Existing Session Check (e.g. from passkey login)
         if session.get('authenticated'):
             return
+
+        # 3. Fallback: Check if app has password configured, else redirect to login
+        if not app.config.get('LITELLM_HELPER_PASSWORD'):
+            return
+
         return redirect(url_for('login'))
 
     from functools import wraps
@@ -121,6 +136,8 @@ def create_app():
                 with _LOGIN_LOCK:
                     _FAILED_LOGINS.pop(client_ip, None)
                 session['authenticated'] = True
+                session['user'] = 'Passkey'
+                session['auth_type'] = 'passkey'
                 session.permanent = True
                 return redirect(url_for('providers'))
             else:
@@ -144,8 +161,22 @@ def create_app():
 
     @app.route('/logout')
     def logout():
-        session.pop('authenticated', None)
+        auth_type = session.get('auth_type')
+        session.clear()
+        if auth_type == 'authelia':
+            root_domain = os.environ.get('ROOT_DOMAIN', 'bluewave.work')
+            return redirect(f"https://auth.{root_domain}/logout")
         return redirect(url_for('login'))
+
+    @app.teardown_appcontext
+    def close_db(error):
+        from flask import g
+        db = g.pop('db', None)
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     # Frontend Routes
     @app.route('/')

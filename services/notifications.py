@@ -450,6 +450,19 @@ def build_weekly_digest_content():
         </div>
         """
 
+    day_name_map = {'mon': 'Monday', 'tue': 'Tuesday', 'wed': 'Wednesday', 'thu': 'Thursday', 'fri': 'Friday', 'sat': 'Saturday', 'sun': 'Sunday'}
+    cfg_day = os.environ.get('DIGEST_DAY_OF_WEEK', 'mon').lower()
+    full_day_name = day_name_map.get(cfg_day, cfg_day.capitalize())
+    try:
+        cfg_hour = int(os.environ.get('DIGEST_HOUR', '6'))
+    except (ValueError, TypeError):
+        cfg_hour = 6
+    try:
+        cfg_minute = int(os.environ.get('DIGEST_MINUTE', '0'))
+    except (ValueError, TypeError):
+        cfg_minute = 0
+    schedule_str = f"{full_day_name} at {cfg_hour:02d}:{cfg_minute:02d}"
+
     # HTML Email Document
     html = f"""<!DOCTYPE html>
 <html>
@@ -566,7 +579,7 @@ def build_weekly_digest_content():
 
         <!-- Footer -->
         <div style="background: #f8fafc; padding: 18px 30px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; line-height: 1.5;">
-            Scheduled weekly operational digest • Sent every Monday at 06:00 AM<br>
+            Scheduled weekly operational digest • Sent every {schedule_str}<br>
             Managed by <strong>LiteLLM Helper v4</strong> on <em>oci01-flex.bluewave.work</em>
         </div>
 

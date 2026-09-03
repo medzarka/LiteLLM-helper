@@ -59,6 +59,9 @@ services:
       - EMAIL_FROM=${EMAIL_FROM}
       - EMAIL_TO=${EMAIL_TO}
       - ROOT_DOMAIN=${ROOT_DOMAIN:-bluewave.work}
+      - DIGEST_DAY_OF_WEEK=${DIGEST_DAY_OF_WEEK:-mon}
+      - DIGEST_HOUR=${DIGEST_HOUR:-6}
+      - DIGEST_MINUTE=${DIGEST_MINUTE:-0}
     depends_on:
       init-volumes:
         condition: service_healthy

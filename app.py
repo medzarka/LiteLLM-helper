@@ -909,15 +909,25 @@ def create_app():
     scheduler = APScheduler()
     scheduler.init_app(app)
     
-    # Weekly operations & model updates digest: every Monday at 6:00 AM
+    # Weekly operations & model updates digest: configurable schedule (default: Monday at 06:00 AM)
     from services.notifications import send_weekly_digest
+    digest_day = os.environ.get('DIGEST_DAY_OF_WEEK', 'mon')
+    try:
+        digest_hour = int(os.environ.get('DIGEST_HOUR', '6'))
+    except (ValueError, TypeError):
+        digest_hour = 6
+    try:
+        digest_minute = int(os.environ.get('DIGEST_MINUTE', '0'))
+    except (ValueError, TypeError):
+        digest_minute = 0
+
     scheduler.add_job(
         id='weekly_digest_job',
         func=send_weekly_digest,
         trigger='cron',
-        day_of_week='mon',
-        hour=6,
-        minute=0
+        day_of_week=digest_day,
+        hour=digest_hour,
+        minute=digest_minute
     )
 
     scheduler.start()

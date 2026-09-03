@@ -39,8 +39,8 @@ services:
   # ========================================================
   litellm-helper:
     build: .
+    image: ghcr.io/medzarka/litellm-helper:latest
     container_name: litellm-helper
-    platform: linux/arm64
     restart: unless-stopped
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm-helper:/app/data

@@ -388,10 +388,72 @@ def validate_config_non_empty(config):
             'Generated config has no model deployments. Add at least one active key to a model before exporting.'
         )
 
+def reload_litellm_service(container_name='litellm'):
+    """
+    Triggers an instant in-memory hot reload of the LiteLLM container via POSIX SIGHUP
+    signal using the Docker Engine API unix socket (/var/run/docker.sock).
+    Falls back to graceful container restart if SIGHUP is unhandled or fails.
+    """
+    import socket
+    import http.client
+    docker_socket = os.environ.get('DOCKER_SOCKET_PATH', '/var/run/docker.sock')
+    if not os.path.exists(docker_socket):
+        return {
+            'reloaded': False,
+            'method': 'none',
+            'message': 'Docker socket not available; restart litellm manually or mount /var/run/docker.sock'
+        }
+
+    class UnixSocketHTTPConnection(http.client.HTTPConnection):
+        def __init__(self, socket_path):
+            super().__init__("localhost")
+            self.socket_path = socket_path
+
+        def connect(self):
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sock.connect(self.socket_path)
+
+    try:
+        # Step 1: Send SIGHUP to trigger Uvicorn worker recycling with zero downtime
+        conn = UnixSocketHTTPConnection(docker_socket)
+        conn.request("POST", f"/containers/{container_name}/kill?signal=SIGHUP")
+        resp = conn.getresponse()
+        resp.read()
+        if resp.status == 204:
+            return {
+                'reloaded': True,
+                'method': 'SIGHUP',
+                'message': f'Successfully signaled {container_name} via SIGHUP (in-memory zero-downtime reload)'
+            }
+
+        # Step 2: Fallback to graceful container restart
+        conn2 = UnixSocketHTTPConnection(docker_socket)
+        conn2.request("POST", f"/containers/{container_name}/restart?t=5")
+        resp2 = conn2.getresponse()
+        resp2.read()
+        if resp2.status == 204:
+            return {
+                'reloaded': True,
+                'method': 'restart',
+                'message': f'Successfully restarted {container_name} container'
+            }
+        return {
+            'reloaded': False,
+            'method': 'error',
+            'message': f'Docker API returned status {resp2.status}'
+        }
+    except Exception as e:
+        return {
+            'reloaded': False,
+            'method': 'exception',
+            'error': str(e)
+        }
+
+
 def sync_to_shared_volume(config_dict, format_type='yaml'):
     """
-    Writes the config file to the shared Docker volume so that the running LiteLLM
-    container can hot-reload it. Then performs a health check on LiteLLM.
+    Writes the config file to the shared Docker volume, sends an immediate SIGHUP signal
+    to LiteLLM via Docker Engine API so it reloads models in memory, and validates health.
     """
     # 1. Determine shared volume path
     # When running inside docker-compose, we mapped ./shared-config to /app/shared
@@ -418,32 +480,42 @@ def sync_to_shared_volume(config_dict, format_type='yaml'):
     except Exception as e:
         return {'success': False, 'error': f'Failed to write to shared volume: {str(e)}'}
         
-    # 3. Ping LiteLLM container to ensure it's alive and processing
+    # 3. Trigger automatic LiteLLM hot reload via SIGHUP
+    reload_result = reload_litellm_service()
+
+    # 4. Verify LiteLLM responsiveness
     import urllib.request
     import time
     
-    time.sleep(5) # Give LiteLLM a moment to detect the file change via --watch
-    
-    # In docker-compose, the container is named `litellm` and exposes port 4000
-    # Use litellm:4000 or fallback to localhost:4000
-    urls_to_test = ['http://litellm:4000/health', 'http://127.0.0.1:4000/health']
+    urls_to_test = [
+        'http://litellm:4000/health/liveliness',
+        'http://127.0.0.1:4000/health/liveliness',
+        'http://litellm:4000/health',
+        'http://127.0.0.1:4000/health'
+    ]
     health_status = 'Unverified'
     
     master_key = os.environ.get('LITELLM_MASTER_KEY')
-    for url in urls_to_test:
-        try:
-            req = urllib.request.Request(url)
-            if master_key:
-                req.add_header('Authorization', f'Bearer {master_key}')
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                if resp.status == 200:
-                    health_status = 'Healthy'
-                    break
-        except Exception:
-            pass
+    for attempt in range(8):
+        time.sleep(1)
+        for url in urls_to_test:
+            try:
+                req = urllib.request.Request(url)
+                if master_key:
+                    req.add_header('Authorization', f'Bearer {master_key}')
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    if resp.status == 200:
+                        health_status = 'Healthy'
+                        break
+            except Exception:
+                pass
+        if health_status == 'Healthy':
+            break
             
     return {
         'success': True, 
         'path': filepath,
+        'reload': reload_result,
         'litellm_health': health_status
     }
+

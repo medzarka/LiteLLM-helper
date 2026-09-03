@@ -45,6 +45,7 @@ services:
     volumes:
       - ${WORKDIR:-/srv/data/ai-ui}/litellm-helper:/app/data
       - ${WORKDIR:-/srv/data/ai-ui}/litellm:/app/shared
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - TZ=${TZ:-UTC}
       - PORT=${LITELLM_HELPER_PORT:-5001}

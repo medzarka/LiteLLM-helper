@@ -844,6 +844,15 @@ def create_app():
             return jsonify(result)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
+
+    @app.route('/api/litellm/reload', methods=['POST'])
+    def reload_litellm():
+        try:
+            from .services.export import reload_litellm_service
+        except (ImportError, ValueError):
+            from services.export import reload_litellm_service
+        result = reload_litellm_service()
+        return jsonify(result)
     
     @app.route('/versions', methods=['POST'])
     def create_version():

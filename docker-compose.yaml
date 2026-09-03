@@ -158,14 +158,15 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - SERVER_TIMEOUT=${SERVER_TIMEOUT:-600}
-      - LITELLM_WORKERS=${LITELLM_WORKERS:-2}
+      - LITELLM_WORKERS=${LITELLM_WORKERS:-1}
       - HF_TOKEN=${HF_TOKEN}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-600}
       - GENERIC_LOGGER_ENDPOINT=http://litellm-helper:${LITELLM_HELPER_PORT:-5001}/api/usage/webhook?token=${LITELLM_HELPER_PASSWORD}
     command: [
       "--config", "/app/config.yaml",
       "--port", "4000",
-      "--reload"
+      "--num_workers", "1",
+      "--telemetry", "False"
     ]
     deploy:
       resources:

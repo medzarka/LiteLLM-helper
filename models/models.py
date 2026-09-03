@@ -851,19 +851,18 @@ class DailyStats:
         ''', (date_str, provider_name or 'unknown', model_name or 'unknown', int(tokens or 0)))
         self.db.conn.commit()
 
-    def get_two_week_summary(self):
+    def get_four_week_summary(self):
         """
-        Returns a structured 2-week summary of requests and tokens.
-        Week 1: Past 7 days (including today)
-        Week 2: Days 8 to 14 ago
+        Returns a structured 4-week summary of requests and tokens,
+        along with the Top 10 models used during the most recent week.
         """
         import datetime
         today = datetime.date.today()
-        
-        # Build 14-day date list (chronological from 13 days ago to today)
-        dates_14 = [today - datetime.timedelta(days=i) for i in range(13, -1, -1)]
-        start_date_str = dates_14[0].isoformat()
-        
+
+        # 28 days total (4 weeks of 7 days each, chronological)
+        dates_28 = [today - datetime.timedelta(days=i) for i in range(27, -1, -1)]
+        start_date_str = dates_28[0].isoformat()
+
         cursor = self.db.conn.cursor()
         cursor.execute('''
             SELECT date, SUM(request_count) as reqs, SUM(total_tokens) as toks
@@ -871,13 +870,20 @@ class DailyStats:
             WHERE date >= ?
             GROUP BY date
         ''', (start_date_str,))
-        
+
         stats_by_date = {row[0]: {'requests': row[1] or 0, 'tokens': row[2] or 0} for row in cursor.fetchall()}
-        
-        week2_dates = dates_14[:7]   # Days 13 to 7 ago (Prior week)
-        week1_dates = dates_14[7:]   # Days 6 to 0 ago (Recent week)
-        
-        def format_week(date_list):
+
+        # 4 blocks of 7 days:
+        # Week 4: days 27 to 21 ago
+        # Week 3: days 20 to 14 ago
+        # Week 2: days 13 to 7 ago
+        # Week 1: days 6 to 0 ago (Recent)
+        w4_dates = dates_28[0:7]
+        w3_dates = dates_28[7:14]
+        w2_dates = dates_28[14:21]
+        w1_dates = dates_28[21:28]
+
+        def format_week(date_list, week_num, label):
             days = []
             total_req = 0
             total_tok = 0
@@ -894,41 +900,75 @@ class DailyStats:
                 total_req += st['requests']
                 total_tok += st['tokens']
             return {
+                'week_num': week_num,
+                'label': label,
                 'days': days,
                 'total_requests': total_req,
                 'total_tokens': total_tok,
                 'start': date_list[0].strftime('%b %d'),
-                'end': date_list[-1].strftime('%b %d')
+                'end': date_list[-1].strftime('%b %d'),
+                'start_iso': date_list[0].isoformat(),
+                'end_iso': date_list[-1].isoformat()
             }
-            
-        w2 = format_week(week2_dates)
-        w1 = format_week(week1_dates)
-        
-        if w2['total_requests'] > 0:
-            trend_pct = round(((w1['total_requests'] - w2['total_requests']) / w2['total_requests']) * 100, 1)
-        elif w1['total_requests'] > 0:
-            trend_pct = 100.0
-        else:
-            trend_pct = 0.0
 
-        # Also get top 5 models across the 14 days
+        w1 = format_week(w1_dates, 1, "Past 7 Days (Recent)")
+        w2 = format_week(w2_dates, 2, "Week -1 (8-14d ago)")
+        w3 = format_week(w3_dates, 3, "Week -2 (15-21d ago)")
+        w4 = format_week(w4_dates, 4, "Week -3 (22-28d ago)")
+
+        # Week-over-Week trend calculations
+        def calc_trend(curr, prev):
+            if prev > 0:
+                return round(((curr - prev) / prev) * 100, 1)
+            elif curr > 0:
+                return 100.0
+            return 0.0
+
+        w1['trend_pct'] = calc_trend(w1['total_requests'], w2['total_requests'])
+        w2['trend_pct'] = calc_trend(w2['total_requests'], w3['total_requests'])
+        w3['trend_pct'] = calc_trend(w3['total_requests'], w4['total_requests'])
+        w4['trend_pct'] = 0.0
+
+        weeks = [w1, w2, w3, w4]
+        total_28d_requests = sum(w['total_requests'] for w in weeks)
+        total_28d_tokens = sum(w['total_tokens'] for w in weeks)
+
+        # Top 10 Models used for the LAST WEEK (Week 1)
         cursor.execute('''
-            SELECT model_name, SUM(request_count) as total_reqs, SUM(total_tokens) as total_toks
+            SELECT model_name, provider_name, SUM(request_count) as reqs, SUM(total_tokens) as toks
             FROM daily_request_stats
-            WHERE date >= ?
+            WHERE date >= ? AND date <= ?
             GROUP BY model_name
-            ORDER BY total_reqs DESC
-            LIMIT 5
-        ''', (start_date_str,))
-        top_models = [{'model_name': r[0], 'requests': r[1], 'tokens': r[2]} for r in cursor.fetchall()]
-            
+            ORDER BY reqs DESC
+            LIMIT 10
+        ''', (w1['start_iso'], w1['end_iso']))
+        top_10_models_last_week = [
+            {'rank': i+1, 'model_name': r[0], 'provider': r[1], 'requests': r[2], 'tokens': r[3]}
+            for i, r in enumerate(cursor.fetchall())
+        ]
+
         return {
+            'weeks': weeks,
             'week1': w1,
             'week2': w2,
-            'trend_pct': trend_pct,
-            'total_14d_requests': w1['total_requests'] + w2['total_requests'],
-            'total_14d_tokens': w1['total_tokens'] + w2['total_tokens'],
-            'top_models': top_models
+            'week3': w3,
+            'week4': w4,
+            'trend_pct': w1['trend_pct'],
+            'total_28d_requests': total_28d_requests,
+            'total_28d_tokens': total_28d_tokens,
+            'top_10_models_last_week': top_10_models_last_week
+        }
+
+    def get_two_week_summary(self):
+        """Backward-compatible alias for 2-week summary callers."""
+        summary = self.get_four_week_summary()
+        return {
+            'week1': summary['week1'],
+            'week2': summary['week2'],
+            'trend_pct': summary['trend_pct'],
+            'total_14d_requests': summary['week1']['total_requests'] + summary['week2']['total_requests'],
+            'total_14d_tokens': summary['week1']['total_tokens'] + summary['week2']['total_tokens'],
+            'top_models': summary['top_10_models_last_week'][:5]
         }
 
 
@@ -940,23 +980,24 @@ class ModelCatalogHistory:
         """
         Synchronizes discovered models with history table to detect:
         1. Models newly discovered in the last 7 days.
-        2. Models that were deprecated/removed.
+        2. Models that were deprecated/removed upstream or from registered local catalog.
         """
         import datetime
         cursor = self.db.conn.cursor()
         now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         seven_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
-        
+
+        discovered_dict = {m['id']: m for m in discovered_models}
         newly_found = []
-        
+
         for m in discovered_models:
             m_id = m['id']
             provider = m.get('provider', 'unknown')
             name = m.get('name', m_id)
-            
+
             cursor.execute('SELECT first_seen, last_seen, is_active FROM discovered_model_history WHERE model_id = ?', (m_id,))
             row = cursor.fetchone()
-            
+
             if not row:
                 cursor.execute('''
                     INSERT INTO discovered_model_history (model_id, provider, name, first_seen, last_seen, is_active)
@@ -973,26 +1014,63 @@ class ModelCatalogHistory:
                 if str(first_seen) >= seven_days_ago:
                     newly_found.append(m)
 
-        # Mark models not seen recently as deprecated
+        # Mark models previously seen but missing from current discovery feed as deprecated
         cursor.execute('''
             UPDATE discovered_model_history
             SET is_active = 0
             WHERE last_seen < ? AND is_active = 1
         ''', (seven_days_ago,))
-        
-        fourteen_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=14)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Also check local registered models whose upstream provider no longer lists them
+        cursor.execute('''
+            SELECT m.id, m.name, m.actual_model, p.name 
+            FROM model m 
+            JOIN provider p ON m.provider_id = p.id
+        ''')
+        local_models = cursor.fetchall()
+
+        deprecated_list = []
+        seen_deprecated_ids = set()
+
+        # Check local models against discovery feed
+        auto_providers = {'openrouter', 'google', 'mistral', 'groq', 'cohere'}
+        for lm in local_models:
+            l_id, l_name, actual_model, prov_name = lm[0], lm[1], lm[2], lm[3].lower()
+            if prov_name in auto_providers:
+                # If neither actual_model nor l_name is in discovered_dict
+                if actual_model not in discovered_dict and actual_model.split('/')[-1] not in discovered_dict:
+                    # Don't flag pseudo/virtual routers like openrouter/free
+                    if actual_model not in ('openrouter/free', 'whisper-large-v3'):
+                        deprecated_list.append({
+                            'id': actual_model,
+                            'name': l_name,
+                            'provider': prov_name,
+                            'reason': 'Configured in catalog but no longer in free discovery feed'
+                        })
+                        seen_deprecated_ids.add(actual_model)
+
+        # Also include history items marked inactive
         cursor.execute('''
             SELECT model_id, provider, name, last_seen
             FROM discovered_model_history
-            WHERE is_active = 0 AND last_seen >= ?
+            WHERE is_active = 0
             ORDER BY last_seen DESC
-        ''', (fourteen_days_ago,))
-        
-        deprecated = [{'id': r[0], 'provider': r[1], 'name': r[2], 'last_seen': r[3]} for r in cursor.fetchall()]
+            LIMIT 20
+        ''')
+        for r in cursor.fetchall():
+            if r[0] not in seen_deprecated_ids:
+                deprecated_list.append({
+                    'id': r[0],
+                    'provider': r[1],
+                    'name': r[2],
+                    'reason': f"Removed upstream (last seen {r[3][:10]})"
+                })
+                seen_deprecated_ids.add(r[0])
+
         self.db.conn.commit()
-        
+
         return {
             'new_models': newly_found,
-            'deprecated_models': deprecated
+            'deprecated_models': deprecated_list
         }
 

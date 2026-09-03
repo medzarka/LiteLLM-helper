@@ -78,20 +78,17 @@
 
         <div class="card shadow-sm border-0 mt-4">
             <div class="card-header bg-info text-white rounded-top">
-                <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Weekly Digest & Emails</h5>
+                <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Weekly Operations Digest</h5>
             </div>
             <div class="card-body bg-light text-center">
-                <p class="small text-muted mb-3">Scheduled weekly report runs every <strong>Monday at 06:00 AM</strong> with 2-week request statistics, new discovered models, and deprecated models.</p>
+                <p class="small text-muted mb-3">Scheduled weekly report sent every <strong>Monday at 06:00 AM</strong> with 4-week request statistics, top 10 models used, new discovered models, and deprecated models.</p>
                 <div class="d-grid gap-2 mb-2">
                     <button id="sendWeeklyDigestBtn" class="btn btn-success btn-sm">
                         <i class="bi bi-envelope-check me-1"></i> Send Weekly Digest Now
                     </button>
-                    <a href="/api/emails/weekly-digest/preview" target="_blank" class="btn btn-outline-secondary btn-sm">
+                    <a href="/api/emails/weekly-digest/preview" target="_blank" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-eye me-1"></i> Preview Weekly Digest
                     </a>
-                    <button id="forceNotifyBtn" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-send me-1"></i> Send Daily Usage & Models
-                    </button>
                 </div>
                 <div id="notifyStatus" class="mt-3 text-start small"></div>
             </div>
@@ -193,11 +190,11 @@ Below is a comprehensive enumeration of every interface within the LiteLLM Helpe
 - **Steps:** Navigate to the Keys Monitor interface, select a Provider, and optionally select a Model. The view will automatically fetch live usage data from Redis.
 - **Tips/Hints:** Rate limits are displayed contextually. You can sort keys by highest or lowest usage to easily identify which keys are close to hitting their limits.
 
-### 13. Notifications
-- **Objectives:** Receive automated emails about newly discovered free-tier models, deprecated models, and daily summaries of API usage.
+### 13. Weekly Operations Digest
+- **Objectives:** Receive an automated, comprehensive executive email every Monday at 06:00 AM with a 4-week request volume summary, top 10 models used, newly discovered free-tier models, and deprecated/removed models.
 - **Content:** Automated email reports powered by background job schedulers (`APScheduler`).
-- **Steps:** Ensure you have configured the SMTP variables (like `SMTP_SERVER` and `SMTP_PASSWORD`) in your `.env` file. 
-- **Tips/Hints:** If using Gmail, you must use a Google "App Password" rather than your standard account password. The jobs run automatically in the background (Usage runs daily at 11:50 PM, Model Discovery runs Mon/Thu at 9:00 AM).
+- **Steps:** Ensure you have configured the SMTP variables (such as `SMTP_SERVER`, `SMTP_USERNAME`, and `SMTP_PASSWORD`) in your `.env` file.
+- **Tips/Hints:** If using Gmail, use a Google "App Password". The weekly digest runs automatically every Monday at 06:00 AM with multi-worker Redis distributed locking to ensure exactly one email is delivered. Daily usage emails have been consolidated into this high-impact weekly summary.
 </script>
 {% endblock %}
 

@@ -246,12 +246,17 @@ def build_weekly_digest_content():
     new_models = model_changes.get('new_models', [])
     deprecated_models = model_changes.get('deprecated_models', [])
 
-    # 2. Retrieve 2-Week Daily & Weekly Usage Statistics
-    usage_summary = DailyStats(db).get_two_week_summary()
+    # 2. Retrieve 4-Week Usage Statistics & Top 10 Models
+    usage_summary = DailyStats(db).get_four_week_summary()
+    weeks = usage_summary['weeks']
     w1 = usage_summary['week1']
     w2 = usage_summary['week2']
+    w3 = usage_summary['week3']
+    w4 = usage_summary['week4']
     trend_pct = usage_summary['trend_pct']
-    top_models = usage_summary.get('top_models', [])
+    total_28d_requests = usage_summary['total_28d_requests']
+    total_28d_tokens = usage_summary['total_28d_tokens']
+    top_10_models = usage_summary.get('top_10_models_last_week', [])
 
     # 3. Generate Clean, Full-Information, Precise HTML Email
     root_domain = os.environ.get('ROOT_DOMAIN', 'bluewave.work')
@@ -261,7 +266,29 @@ def build_weekly_digest_content():
     trend_arrow = '▲' if trend_pct >= 0 else '▼'
     trend_sign = '+' if trend_pct >= 0 else ''
 
-    # Build Daily Comparison Table rows (matching Mon..Sun by index)
+    # Build 4-Week Summary Table Rows
+    weeks_rows_html = ""
+    for wk in weeks:
+        t_pct = wk.get('trend_pct', 0.0)
+        t_col = '#10b981' if t_pct >= 0 else '#ef4444'
+        t_sign = '+' if t_pct >= 0 else ''
+        t_display = f"{t_sign}{t_pct}%" if wk['week_num'] < 4 else "-"
+        is_current = wk['week_num'] == 1
+        row_bg = '#f0fdf4' if is_current else '#ffffff'
+        font_weight = '700' if is_current else '500'
+        weeks_rows_html += f"""
+        <tr style="border-bottom: 1px solid #e2e8f0; background: {row_bg};">
+            <td style="padding: 9px 12px; font-weight: {font_weight}; color: #0f172a;">
+                {wk['label']}
+                <div style="font-weight: normal; color: #64748b; font-size: 11px;">{wk['start']} – {wk['end']}</div>
+            </td>
+            <td style="padding: 9px 12px; text-align: right; font-weight: {font_weight}; color: #0f172a; font-family: monospace;">{wk['total_requests']:,}</td>
+            <td style="padding: 9px 12px; text-align: right; color: #64748b; font-family: monospace; font-size: 12px;">{wk['total_tokens']:,}</td>
+            <td style="padding: 9px 12px; text-align: right; font-weight: 600; color: {t_col}; font-size: 12px;">{t_display}</td>
+        </tr>
+        """
+
+    # Build Daily Comparison Table rows (matching Mon..Sun for Week 1 vs Week 2)
     daily_rows_html = ""
     w1_days = w1.get('days', [])
     w2_days = w2.get('days', [])
@@ -287,69 +314,91 @@ def build_weekly_digest_content():
 
         daily_rows_html += f"""
         <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 9px 12px; font-weight: 600; color: #1e293b;">{day_name} <span style="font-weight: normal; color: #64748b; font-size: 11px;">({d1.get('formatted')})</span></td>
-            <td style="padding: 9px 12px; text-align: right; color: #64748b; font-family: monospace;">{r2:,}</td>
-            <td style="padding: 9px 12px; text-align: right; font-weight: 600; color: #0f172a; font-family: monospace;">{r1:,}</td>
-            <td style="padding: 9px 12px; text-align: right; font-weight: 600; color: {d_delta_color}; font-size: 12px;">{d_delta_str}</td>
+            <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">{day_name} <span style="font-weight: normal; color: #64748b; font-size: 11px;">({d1.get('formatted')})</span></td>
+            <td style="padding: 8px 12px; text-align: right; color: #64748b; font-family: monospace;">{r2:,}</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 600; color: #0f172a; font-family: monospace;">{r1:,}</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 600; color: {d_delta_color}; font-size: 12px;">{d_delta_str}</td>
         </tr>
         """
 
-    # Top Models Section
+    # Top 10 Models Used (Last Week) Section
     top_models_html = ""
-    if top_models:
+    if top_10_models:
         top_models_html += """
-        <div style="margin-top: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
-            <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Top Models (Last 14 Days)</h4>
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <div style="margin-top: 24px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a; font-weight: 700;">
+                🔥 Top 10 Models Used (Last Week)
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <thead>
+                    <tr style="background: #f8fafc; color: #475569; text-align: left; border-bottom: 2px solid #e2e8f0;">
+                        <th style="padding: 8px 10px; width: 35px; text-align: center;">#</th>
+                        <th style="padding: 8px 10px;">Model Name</th>
+                        <th style="padding: 8px 10px;">Provider</th>
+                        <th style="padding: 8px 10px; text-align: right;">Requests</th>
+                        <th style="padding: 8px 10px; text-align: right;">Tokens</th>
+                    </tr>
+                </thead>
+                <tbody>
         """
-        for m in top_models:
+        for m in top_10_models:
             top_models_html += f"""
-            <tr style="border-bottom: 1px dashed #cbd5e1;">
-                <td style="padding: 5px 0; font-weight: 500; color: #1e293b;">{m['model_name']}</td>
-                <td style="padding: 5px 0; text-align: right; font-family: monospace; font-weight: 600; color: #0284c7;">{m['requests']:,} reqs</td>
-            </tr>
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 7px 10px; text-align: center; font-weight: 700; color: #64748b;">{m['rank']}</td>
+                        <td style="padding: 7px 10px; font-weight: 600; color: #0f172a;">{m['model_name']}</td>
+                        <td style="padding: 7px 10px; color: #0284c7; text-transform: uppercase; font-size: 11px; font-weight: 600;">{m.get('provider', 'unknown')}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #0f172a;">{m['requests']:,}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; color: #64748b;">{m['tokens']:,}</td>
+                    </tr>
             """
-        top_models_html += "</table></div>"
+        top_models_html += "</tbody></table></div>"
+    else:
+        top_models_html = """
+        <div style="margin-top: 20px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #64748b;">
+            <i style="color: #94a3b8;">No model requests recorded during the past 7 days.</i>
+        </div>
+        """
 
     # New Models Section
     new_models_html = ""
     if new_models:
         new_models_html += f"""
-        <div style="margin-top: 22px;">
+        <div style="margin-top: 24px;">
             <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f766e; font-weight: 700;">
                 ✨ New Free Models Discovered ({len(new_models)})
             </h3>
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 6px;">
-                <thead>
-                    <tr style="background: #ccfbf1; color: #115e59; text-align: left;">
-                        <th style="padding: 8px 10px;">Model Name</th>
-                        <th style="padding: 8px 10px;">Provider</th>
-                        <th style="padding: 8px 10px;">Context</th>
-                        <th style="padding: 8px 10px;">Capabilities</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 6px;">
+                    <thead>
+                        <tr style="background: #ccfbf1; color: #115e59; text-align: left;">
+                            <th style="padding: 8px 10px;">Model Name</th>
+                            <th style="padding: 8px 10px;">Provider</th>
+                            <th style="padding: 8px 10px;">Context</th>
+                            <th style="padding: 8px 10px;">Capabilities</th>
+                        </tr>
+                    </thead>
+                    <tbody>
         """
-        for nm in new_models[:10]:
+        for nm in new_models[:12]:
             skills_str = ", ".join(nm.get('skills', [])) or ("Tools" if nm.get('supports_function_calling') else "Chat")
             ctx = f"{nm.get('context_length', 0):,} tokens" if nm.get('context_length') else "-"
             new_models_html += f"""
-                    <tr style="border-bottom: 1px solid #e6fffa;">
-                        <td style="padding: 7px 10px; font-weight: 600; color: #134e4a;">{nm.get('name', nm['id'])}</td>
-                        <td style="padding: 7px 10px; color: #0f766e; text-transform: uppercase; font-size: 11px; font-weight: 600;">{nm.get('provider')}</td>
-                        <td style="padding: 7px 10px; color: #334155; font-family: monospace;">{ctx}</td>
-                        <td style="padding: 7px 10px; color: #0f766e; font-size: 11px;">{skills_str}</td>
-                    </tr>
+                        <tr style="border-bottom: 1px solid #e6fffa;">
+                            <td style="padding: 7px 10px; font-weight: 600; color: #134e4a;">{nm.get('name', nm['id'])}</td>
+                            <td style="padding: 7px 10px; color: #0f766e; text-transform: uppercase; font-size: 11px; font-weight: 600;">{nm.get('provider')}</td>
+                            <td style="padding: 7px 10px; color: #334155; font-family: monospace;">{ctx}</td>
+                            <td style="padding: 7px 10px; color: #0f766e; font-size: 11px;">{skills_str}</td>
+                        </tr>
             """
-        if len(new_models) > 10:
+        if len(new_models) > 12:
             new_models_html += f"""
-                    <tr>
-                        <td colspan="4" style="padding: 8px 10px; text-align: center; color: #0d9488; font-style: italic;">
-                            + {len(new_models) - 10} additional models available in dashboard
-                        </td>
-                    </tr>
+                        <tr>
+                            <td colspan="4" style="padding: 8px 10px; text-align: center; color: #0d9488; font-style: italic;">
+                                + {len(new_models) - 12} additional models available in dashboard
+                            </td>
+                        </tr>
             """
-        new_models_html += "</tbody></table></div>"
+        new_models_html += "</tbody></table></div></div>"
     else:
         new_models_html = """
         <div style="margin-top: 18px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #94a3b8; border-radius: 4px; font-size: 13px; color: #475569;">
@@ -357,25 +406,49 @@ def build_weekly_digest_content():
         </div>
         """
 
-    # Deprecated Models Section
+    # Deprecated Models Section (Always Visible)
     deprecated_html = ""
     if deprecated_models:
         deprecated_html += f"""
-        <div style="margin-top: 20px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #b91c1c; font-weight: 700;">
-                ⚠️ Deprecated / Removed Upstream ({len(deprecated_models)})
+        <div style="margin-top: 24px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #b91c1c; font-weight: 700;">
+                ⚠️ Deprecated / Removed Upstream Models ({len(deprecated_models)})
             </h3>
-            <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #7f1d1d;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                <thead>
+                    <tr style="background: #fee2e2; color: #991b1b; text-align: left;">
+                        <th style="padding: 8px 10px;">Model Name / ID</th>
+                        <th style="padding: 8px 10px;">Provider</th>
+                        <th style="padding: 8px 10px;">Status / Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
         """
-        for dm in deprecated_models[:8]:
+        for dm in deprecated_models[:12]:
+            dm_name = dm.get('name') or dm.get('id') or dm.get('model_id')
+            dm_reason = dm.get('reason', 'Removed from upstream discovery feed')
             deprecated_html += f"""
-                <li style="margin-bottom: 4px;">
-                    <strong>{dm.get('name') or dm.get('model_id')}</strong> ({dm.get('provider', '').upper()}) — No longer available in discovery feed.
-                </li>
+                    <tr style="border-bottom: 1px solid #fee2e2;">
+                        <td style="padding: 7px 10px; font-weight: 600; color: #7f1d1d;">{dm_name}</td>
+                        <td style="padding: 7px 10px; color: #991b1b; text-transform: uppercase; font-size: 11px; font-weight: 600;">{dm.get('provider')}</td>
+                        <td style="padding: 7px 10px; color: #b91c1c; font-size: 11px;">{dm_reason}</td>
+                    </tr>
             """
-        if len(deprecated_models) > 8:
-            deprecated_html += f"<li><em>+ {len(deprecated_models) - 8} more deprecated models</em></li>"
-        deprecated_html += "</ul></div>"
+        if len(deprecated_models) > 12:
+            deprecated_html += f"""
+                    <tr>
+                        <td colspan="3" style="padding: 8px 10px; text-align: center; color: #991b1b; font-style: italic;">
+                            + {len(deprecated_models) - 12} additional deprecated models
+                        </td>
+                    </tr>
+            """
+        deprecated_html += "</tbody></table></div>"
+    else:
+        deprecated_html = """
+        <div style="margin-top: 20px; padding: 12px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 13px; color: #166534;">
+            <strong>✓ Upstream Health:</strong> 0 models deprecated this week. All provider free-tier models are stable.
+        </div>
+        """
 
     # HTML Email Document
     html = f"""<!DOCTYPE html>
@@ -385,7 +458,7 @@ def build_weekly_digest_content():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    <div style="max-width: 650px; margin: 25px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+    <div style="max-width: 680px; margin: 25px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 26px 30px; color: #ffffff;">
@@ -396,38 +469,70 @@ def build_weekly_digest_content():
                 Weekly Operations & Model Digest
             </h1>
             <div style="margin-top: 6px; font-size: 13px; color: #94a3b8;">
-                Coverage: <strong>{w2.get('start')} – {w1.get('end')}, {now.year}</strong> (Last 14 Days)
+                4-Week Coverage: <strong>{w4.get('start')} – {w1.get('end')}, {now.year}</strong> (28 Days)
             </div>
         </div>
 
         <!-- Content Area -->
         <div style="padding: 26px 30px;">
 
-            <!-- KPI Cards Grid -->
+            <!-- 4-Card KPI Overview Grid -->
             <table style="width: 100%; border-collapse: separate; border-spacing: 10px 0; margin-bottom: 24px;">
                 <tr>
-                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Past 7 Days</div>
-                        <div style="font-size: 22px; font-weight: 700; color: #0f172a; margin: 4px 0;">{w1.get('total_requests', 0):,}</div>
+                    <td style="width: 25%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: #64748b;">Past 7 Days</div>
+                        <div style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 4px 0;">{w1.get('total_requests', 0):,}</div>
                         <div style="font-size: 11px; color: #0284c7; font-weight: 500;">Requests</div>
                     </td>
-                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Prior 7 Days</div>
-                        <div style="font-size: 22px; font-weight: 700; color: #475569; margin: 4px 0;">{w2.get('total_requests', 0):,}</div>
+                    <td style="width: 25%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: #64748b;">4-Week Total</div>
+                        <div style="font-size: 20px; font-weight: 700; color: #334155; margin: 4px 0;">{total_28d_requests:,}</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 500;">Requests</div>
                     </td>
-                    <td style="width: 33%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b;">Weekly Trend</div>
-                        <div style="font-size: 22px; font-weight: 700; color: {trend_color}; margin: 4px 0;">{trend_arrow} {trend_sign}{trend_pct}%</div>
-                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">Volume Delta</div>
+                    <td style="width: 25%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: #64748b;">Weekly Trend</div>
+                        <div style="font-size: 20px; font-weight: 700; color: {trend_color}; margin: 4px 0;">{trend_arrow} {trend_sign}{trend_pct}%</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">WoW Delta</div>
+                    </td>
+                    <td style="width: 25%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: #64748b;">4-Week Tokens</div>
+                        <div style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 4px 0;">{total_28d_tokens:,}</div>
+                        <div style="font-size: 11px; color: #0284c7; font-weight: 500;">Tokens</div>
                     </td>
                 </tr>
             </table>
 
-            <!-- Daily Requests Comparison Table -->
+            <!-- 4-Week Summary Table -->
             <div style="margin-bottom: 24px;">
                 <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a; font-weight: 700;">
-                    Daily Request Distribution (2-Week Breakdown)
+                    4-Week Request Volume Summary
+                </h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                    <thead>
+                        <tr style="background: #f1f5f9; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 9px 12px;">Week Period</th>
+                            <th style="padding: 9px 12px; text-align: right;">Requests</th>
+                            <th style="padding: 9px 12px; text-align: right;">Tokens</th>
+                            <th style="padding: 9px 12px; text-align: right;">WoW Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {weeks_rows_html}
+                        <!-- Total Row -->
+                        <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
+                            <td style="padding: 10px 12px; color: #0f172a;">Total (All 4 Weeks)</td>
+                            <td style="padding: 10px 12px; text-align: right; color: #0f172a; font-family: monospace;">{total_28d_requests:,}</td>
+                            <td style="padding: 10px 12px; text-align: right; color: #64748b; font-family: monospace;">{total_28d_tokens:,}</td>
+                            <td style="padding: 10px 12px; text-align: right; color: #64748b; font-size: 12px;">28 Days</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Daily Requests Comparison Table (Week 1 vs Week 2) -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a; font-weight: 700;">
+                    Daily Request Distribution (Past 7 Days vs Prior Week)
                 </h3>
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead>
@@ -440,13 +545,6 @@ def build_weekly_digest_content():
                     </thead>
                     <tbody>
                         {daily_rows_html}
-                        <!-- Total Row -->
-                        <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
-                            <td style="padding: 10px 12px; color: #0f172a;">Weekly Total</td>
-                            <td style="padding: 10px 12px; text-align: right; color: #64748b; font-family: monospace;">{w2.get('total_requests', 0):,}</td>
-                            <td style="padding: 10px 12px; text-align: right; color: #0f172a; font-family: monospace;">{w1.get('total_requests', 0):,}</td>
-                            <td style="padding: 10px 12px; text-align: right; color: {trend_color}; font-size: 13px;">{trend_sign}{trend_pct}%</td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -468,7 +566,7 @@ def build_weekly_digest_content():
 
         <!-- Footer -->
         <div style="background: #f8fafc; padding: 18px 30px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; line-height: 1.5;">
-            Scheduled weekly report • Sent every Monday at 06:00 AM<br>
+            Scheduled weekly operational digest • Sent every Monday at 06:00 AM<br>
             Managed by <strong>LiteLLM Helper v4</strong> on <em>oci01-flex.bluewave.work</em>
         </div>
 

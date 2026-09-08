@@ -13,6 +13,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        echo ">>> [Init] Delaying boot by 15s to allow Docker Swarm overlay networks to initialize..."
+        sleep 15
         echo ">>> [Init] Creating storage directories under /data..."
         mkdir -p /data/litellm-helper /data/litellm /data/redis_data
 
@@ -29,10 +31,10 @@ services:
         sleep infinity
     healthcheck:
       test: ["CMD-SHELL", "test -d /data/litellm && test -d /data/litellm-helper || exit 1"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 15s
 
   # ========================================================
   # LITELLM HELPER / CONTROL PLANE

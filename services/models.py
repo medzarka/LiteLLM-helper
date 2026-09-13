@@ -68,7 +68,12 @@ def get_deprecated_models():
         cohere_row = cursor.fetchone()
         cohere_api_key = cohere_row[0] if cohere_row else None
         
-        provider_models = get_all_provider_models(google_api_key, mistral_api_key, groq_api_key, cohere_api_key)
+        cursor.execute("SELECT k.key_value, p.api_base FROM api_key k JOIN provider p ON k.provider_id = p.id WHERE (p.name = 'unorouter' OR p.provider_type = 'unorouter') AND k.is_active = 1 LIMIT 1")
+        unorouter_row = cursor.fetchone()
+        unorouter_api_key = unorouter_row[0] if unorouter_row else None
+        unorouter_api_base = unorouter_row[1] if (unorouter_row and unorouter_row[1]) else None
+        
+        provider_models = get_all_provider_models(google_api_key, mistral_api_key, groq_api_key, cohere_api_key, unorouter_api_key, unorouter_api_base)
         
         # Fetch all models from db with their provider types
         cursor.execute('''
@@ -80,13 +85,14 @@ def get_deprecated_models():
         
         deprecated = []
         # Check supported provider types
-        supported = ['gemini', 'mistral', 'openrouter', 'ollama', 'groq']
+        supported = ['gemini', 'mistral', 'openrouter', 'ollama', 'groq', 'cohere', 'unorouter']
         
         for row in local_models:
             m_id, m_name, actual_model, p_type, p_name = row
-            if p_type in supported:
+            check_key = 'unorouter' if (p_type == 'unorouter' or (p_name and p_name.lower() == 'unorouter')) else p_type
+            if check_key in supported:
                 # If provider API was successfully queried (set is not empty) and model is not in it
-                if len(provider_models.get(p_type, set())) > 0 and actual_model not in provider_models[p_type]:
+                if len(provider_models.get(check_key, set())) > 0 and actual_model not in provider_models[check_key]:
                     deprecated.append({
                         'id': m_id,
                         'name': m_name,

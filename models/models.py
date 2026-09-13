@@ -1033,7 +1033,7 @@ class ModelCatalogHistory:
         seen_deprecated_ids = set()
 
         # Check local models against discovery feed
-        auto_providers = {'openrouter', 'google', 'mistral', 'groq', 'cohere'}
+        auto_providers = {'openrouter', 'google', 'mistral', 'groq', 'cohere', 'unorouter'}
         for lm in local_models:
             l_id, l_name, actual_model, prov_name = lm[0], lm[1], lm[2], lm[3].lower()
             if prov_name in auto_providers:

@@ -246,8 +246,12 @@ async def handle_call_tool(
 
             cohere_row = conn.execute("SELECT k.key_value FROM api_key k JOIN provider p ON k.provider_id = p.id WHERE p.provider_type = 'cohere' AND k.is_active = 1 LIMIT 1").fetchone()
             cohere_api_key = cohere_row['key_value'] if cohere_row else None
+
+            unorouter_row = conn.execute("SELECT k.key_value, p.api_base FROM api_key k JOIN provider p ON k.provider_id = p.id WHERE (p.name = 'unorouter' OR p.provider_type = 'unorouter') AND k.is_active = 1 LIMIT 1").fetchone()
+            unorouter_api_key = unorouter_row['key_value'] if unorouter_row else None
+            unorouter_api_base = unorouter_row['api_base'] if (unorouter_row and unorouter_row['api_base']) else None
             
-            provider_models = get_all_provider_models(google_api_key, mistral_api_key, groq_api_key, cohere_api_key)
+            provider_models = get_all_provider_models(google_api_key, mistral_api_key, groq_api_key, cohere_api_key, unorouter_api_key, unorouter_api_base)
             
             local_models = conn.execute('''
                 SELECT m.id, m.name, m.actual_model, p.provider_type, p.name as provider_name
@@ -257,13 +261,15 @@ async def handle_call_tool(
             conn.close()
             
             deprecated = []
-            supported = ['gemini', 'mistral', 'openrouter', 'ollama', 'groq']
+            supported = ['gemini', 'mistral', 'openrouter', 'ollama', 'groq', 'cohere', 'unorouter']
             
             for row in local_models:
                 p_type = row['provider_type']
                 actual_model = row['actual_model']
-                if p_type in supported:
-                    if len(provider_models.get(p_type, set())) > 0 and actual_model not in provider_models[p_type]:
+                p_name = row['provider_name']
+                check_key = 'unorouter' if (p_type == 'unorouter' or (p_name and p_name.lower() == 'unorouter')) else p_type
+                if check_key in supported:
+                    if len(provider_models.get(check_key, set())) > 0 and actual_model not in provider_models[check_key]:
                         deprecated.append(row)
                         
             return [types.TextContent(type="text", text=json.dumps(deprecated, indent=2))]

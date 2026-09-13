@@ -70,7 +70,7 @@ def check_models_and_notify():
         local_actual_models = [row[1] for row in local_models]
         
         # Providers that support auto-discovery (from discovery.py logic)
-        auto_discovery_providers = ['openrouter', 'gemini', 'google', 'mistral', 'groq', 'huggingface', 'github']
+        auto_discovery_providers = ['openrouter', 'gemini', 'google', 'mistral', 'groq', 'huggingface', 'github', 'unorouter']
         
         # 3. Find New Models (in discovered_models but not in local_models)
         new_models = []

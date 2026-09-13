@@ -35,6 +35,9 @@ def enrich_with_litellm(m):
     elif provider == 'groq':
         if not litellm_model.startswith('groq/'):
             litellm_model = f"groq/{m_id}"
+    elif provider == 'unorouter':
+        if not litellm_model.startswith('openai/'):
+            litellm_model = f"openai/{m_id}"
     
     try:
         info = litellm.get_model_info(litellm_model)
@@ -201,6 +204,12 @@ def discover_free_models():
         cursor.execute("SELECT k.key_value FROM api_key k JOIN provider p ON k.provider_id = p.id WHERE p.provider_type = 'cohere' AND k.is_active = 1 LIMIT 1")
         co_row = cursor.fetchone()
         cohere_api_key = co_row[0] if co_row else None
+
+        # Get UnoRouter key and api_base if configured
+        cursor.execute("SELECT k.key_value, p.api_base FROM api_key k JOIN provider p ON k.provider_id = p.id WHERE (p.name = 'unorouter' OR p.provider_type = 'unorouter') AND k.is_active = 1 LIMIT 1")
+        u_row = cursor.fetchone()
+        unorouter_api_key = u_row[0] if u_row else None
+        unorouter_api_base = (u_row[1] if (u_row and u_row[1]) else 'https://api.unorouter.com/v1').rstrip('/')
         
     except Exception as e:
         print("Error fetching keys for discovery:", e)
@@ -208,6 +217,8 @@ def discover_free_models():
         mistral_api_key = None
         groq_api_key = None
         cohere_api_key = None
+        unorouter_api_key = None
+        unorouter_api_base = 'https://api.unorouter.com/v1'
 
     # 2. Google Models
     google_models = []
@@ -445,11 +456,48 @@ def discover_free_models():
         
     models.extend(ollama_models)
     
+    # 5. UnoRouter Models
+    unorouter_models = []
+    if unorouter_api_key:
+        try:
+            resp = requests.get(f"{unorouter_api_base}/models", headers={'Authorization': f'Bearer {unorouter_api_key}'}, timeout=6)
+            if resp.status_code == 200:
+                data = resp.json().get('data', [])
+                for m in data:
+                    m_id = m.get('id', '')
+                    if not m_id:
+                        continue
+                    m_name = m.get('name', m_id)
+                    size = extract_size_b(m_id) or extract_size_b(m_name)
+                    skills = []
+                    if any(v in m_id.lower() for v in ['vision', 'vl', '4o', 'gemini-1.5', 'gemini-2.0']):
+                        skills.append('vision')
+                    
+                    ctx_len = m.get('context_length', 32768)
+                    unorouter_models.append({
+                        'provider': 'unorouter',
+                        'id': m_id,
+                        'name': m_name,
+                        'context_length': ctx_len,
+                        'supports_function_calling': True,
+                        'rpm_limit': 20,
+                        'tpm_limit': 40000,
+                        'rpd_limit': 200,
+                        'description': f"UnoRouter model {m_id}",
+                        'model_size_b': size,
+                        'skills': skills
+                    })
+        except Exception as e:
+            print("Failed to fetch UnoRouter API:", e)
+            
+    if unorouter_models:
+        models.extend(unorouter_models)
+
     # Enrich all discovered models with LiteLLM data
     enriched_models = [enrich_with_litellm(m) for m in models]
     return enriched_models
 
-def get_all_provider_models(google_api_key=None, mistral_api_key=None, groq_api_key=None, cohere_api_key=None):
+def get_all_provider_models(google_api_key=None, mistral_api_key=None, groq_api_key=None, cohere_api_key=None, unorouter_api_key=None, unorouter_api_base=None):
     """
     Fetches ALL models (paid and free) from supported providers to detect deprecated models.
     Returns a dictionary mapping provider IDs to a set of actual model strings.
@@ -460,7 +508,8 @@ def get_all_provider_models(google_api_key=None, mistral_api_key=None, groq_api_
         'mistral': set(),
         'ollama': set(),
         'groq': set(),
-        'cohere': set()
+        'cohere': set(),
+        'unorouter': set()
     }
     
     # 1. OpenRouter
@@ -515,6 +564,16 @@ def get_all_provider_models(google_api_key=None, mistral_api_key=None, groq_api_
                 for m in resp.json().get('models', []):
                     if 'chat' in m.get('endpoints', []) or 'generate' in m.get('endpoints', []):
                         provider_models['cohere'].add(m['name'])
+        except: pass
+
+    # 7. UnoRouter
+    if unorouter_api_key:
+        try:
+            base_url = (unorouter_api_base or 'https://api.unorouter.com/v1').rstrip('/')
+            resp = requests.get(f'{base_url}/models', headers={'Authorization': f'Bearer {unorouter_api_key}'}, timeout=5)
+            if resp.status_code == 200:
+                for m in resp.json().get('data', []):
+                    provider_models['unorouter'].add(m['id'])
         except: pass
     
     return provider_models

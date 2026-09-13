@@ -27,6 +27,7 @@ def _normalize_provider_for_litellm(provider_name):
         'zai': 'zai',
         'openai': 'openai',
         'anthropic': 'anthropic',
+        'unorouter': 'openai',
     }
     return provider_map.get(key, raw.lower())
 
@@ -41,7 +42,7 @@ def _normalize_model_name(actual_model, provider_name):
 
     if normalized_provider != 'openrouter':
         # Older records may have provider prefixes like "Groq/..." or "google/...".
-        for prefix in (provider + '/', normalized_provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/'):
+        for prefix in (provider + '/', normalized_provider + '/', 'google/', 'googleai/', 'google_ai/', 'gemini/', 'unorouter/'):
             if prefix != '/' and model_name.lower().startswith(prefix):
                 model_name = model_name[len(prefix):]
                 break
@@ -277,7 +278,9 @@ def generate_config(
                 'gemini': (60.0, 10.0),
                 'mistral': (60.0, 10.0),
                 'ollama': (120.0, 30.0),
-                'openrouter': (90.0, 15.0)
+                'openrouter': (90.0, 15.0),
+                'unorouter': (90.0, 15.0),
+                'openai': (60.0, 15.0)
             }
             timeout, stream_timeout = chat_timeouts.get(normalized_provider, (60.0, 15.0))
 
@@ -328,6 +331,8 @@ def generate_config(
             entry['litellm_params']['tpm'] = model['tpm_limit']
         if provider.get('api_base'):
             entry['litellm_params']['api_base'] = provider['api_base']
+        elif (provider.get('name') or '').strip().lower() == 'unorouter' or (provider.get('provider_type') or '').strip().lower() == 'unorouter':
+            entry['litellm_params']['api_base'] = 'https://api.unorouter.com/v1'
 
         if normalized_provider == 'mistral' and mode == 'chat':
             entry['litellm_params']['safe_prompt'] = False
